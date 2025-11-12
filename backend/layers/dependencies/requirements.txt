@@ -1,0 +1,4 @@
+# Solo dependencias necesarias para Lambda functions
+# Las dependencias pesadas (numpy, nibabel, scikit-image, open3d) 
+# están en el container de SageMaker, no se necesitan en Lambda
+boto3>=1.28.0

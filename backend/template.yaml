@@ -1,0 +1,237 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: IRIS Oculus - Serverless Backend
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 900
+    MemorySize: 3008
+    Environment:
+      Variables:
+        S3_BUCKET: !Ref DataBucket
+        DYNAMODB_TABLE: !Ref MetadataTable
+        SAGEMAKER_ENDPOINT_NAME: iris-totalsegmentator-endpoint
+
+  Api:
+    Cors:
+      AllowOrigin: "'https://iris-oculus.com,http://localhost:5173'"
+      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+      AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      AllowCredentials: true
+
+Parameters:
+  DomainName:
+    Type: String
+    Default: iris-oculus.com
+    Description: Custom domain name for the API
+
+Resources:
+  # S3 Bucket for storing NIFTI/DICOM files and processed models
+  DataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'iris-oculus-data-${AWS::AccountId}'
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - 'https://iris-oculus.com'
+              - 'http://localhost:5173'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+            AllowedHeaders:
+              - '*'
+            MaxAge: 3600
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldFiles
+            Status: Enabled
+            ExpirationInDays: 90
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # DynamoDB Table for metadata
+  MetadataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: iris-oculus-metadata
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: jobId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: N
+      KeySchema:
+        - AttributeName: jobId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: userId-createdAt-index
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # Lambda Layer for dependencies
+  DependenciesLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: iris-dependencies
+      Description: Dependencies for IRIS backend
+      ContentUri: layers/dependencies/
+      CompatibleRuntimes:
+        - python3.11
+    Metadata:
+      BuildMethod: python3.11
+
+  # Lambda Function for file upload
+  UploadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: iris-upload
+      CodeUri: lambdas/upload/
+      Handler: handler.lambda_handler
+      Layers:
+        - !Ref DependenciesLayer
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref DataBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MetadataTable
+      Events:
+        Upload:
+          Type: Api
+          Properties:
+            Path: /upload
+            Method: POST
+
+  # Lambda Function for processing orchestration
+  ProcessFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: iris-process
+      CodeUri: lambdas/process/
+      Handler: handler.lambda_handler
+      Timeout: 900
+      Layers:
+        - !Ref DependenciesLayer
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref DataBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MetadataTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sagemaker:InvokeEndpoint
+                - sagemaker:InvokeEndpointAsync
+              Resource: !Sub 'arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:endpoint/iris-totalsegmentator-endpoint'
+      Events:
+        Process:
+          Type: Api
+          Properties:
+            Path: /process/totalseg
+            Method: POST
+
+  # Lambda Function for file download
+  DownloadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: iris-download
+      CodeUri: lambdas/download/
+      Handler: handler.lambda_handler
+      Layers:
+        - !Ref DependenciesLayer
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref DataBucket
+        - DynamoDBReadPolicy:
+            TableName: !Ref MetadataTable
+      Events:
+        GetFile:
+          Type: Api
+          Properties:
+            Path: /files/{jobId}/{filename}
+            Method: GET
+
+  # Lambda Function for health check
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: iris-health
+      CodeUri: lambdas/health/
+      Handler: handler.lambda_handler
+      Events:
+        Health:
+          Type: Api
+          Properties:
+            Path: /healthz
+            Method: GET
+
+  # SageMaker Execution Role
+  SageMakerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: iris-sagemaker-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sagemaker.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub '${DataBucket.Arn}/*'
+
+  # SageMaker Model (to be created manually or via separate script)
+  # Note: SageMaker endpoint configuration will be in a separate deployment script
+  # because TotalSegmentator requires custom Docker image
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/'
+    Export:
+      Name: IrisApiEndpoint
+
+  DataBucketName:
+    Description: S3 Bucket for data storage
+    Value: !Ref DataBucket
+    Export:
+      Name: IrisDataBucket
+
+  MetadataTableName:
+    Description: DynamoDB Table for metadata
+    Value: !Ref MetadataTable
+    Export:
+      Name: IrisMetadataTable
+
+  SageMakerRoleArn:
+    Description: SageMaker Execution Role ARN
+    Value: !GetAtt SageMakerExecutionRole.Arn
+    Export:
+      Name: IrisSageMakerRole

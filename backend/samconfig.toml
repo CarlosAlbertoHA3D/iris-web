@@ -1,0 +1,17 @@
+version = 0.1
+
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "iris-oculus-backend"
+s3_prefix = "iris-oculus"
+region = "us-east-1"
+capabilities = "CAPABILITY_NAMED_IAM"
+parameter_overrides = "DomainName=iris-oculus.com"
+confirm_changeset = true
+resolve_s3 = true
+
+[default.build]
+[default.build.parameters]
+cached = true
+parallel = true

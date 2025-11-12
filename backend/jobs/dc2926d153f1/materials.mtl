@@ -1,0 +1,848 @@
+newmtl endocrine__adrenal_gland_left
+Ka 0.0 0.0 0.0
+Kd 0.933 0.510 0.098
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl endocrine__adrenal_gland_right
+Ka 0.0 0.0 0.0
+Kd 0.933 0.510 0.098
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl arteries_cardiovascular__aorta
+Ka 0.0 0.0 0.0
+Kd 1.000 0.000 0.235
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl heart_cardiovascular__atrial_appendage_left
+Ka 0.0 0.0 0.0
+Kd 0.784 0.784 0.784
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl other__autochthon_left
+Ka 0.0 0.0 0.0
+Kd 0.784 0.784 0.784
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl other__autochthon_right
+Ka 0.0 0.0 0.0
+Kd 0.784 0.784 0.784
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl arteries_cardiovascular__brachiocephalic_trunk
+Ka 0.0 0.0 0.0
+Kd 0.784 0.784 0.784
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl veins_cardiovascular__brachiocephalic_vein_left
+Ka 0.0 0.0 0.0
+Kd 0.000 0.392 1.000
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl veins_cardiovascular__brachiocephalic_vein_right
+Ka 0.0 0.0 0.0
+Kd 0.000 0.392 1.000
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl other__clavicula_left
+Ka 0.0 0.0 0.0
+Kd 0.784 0.784 0.784
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl other__clavicula_right
+Ka 0.0 0.0 0.0
+Kd 0.784 0.784 0.784
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl digestive__colon
+Ka 0.0 0.0 0.0
+Kd 0.784 0.490 0.549
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl arteries_cardiovascular__common_carotid_artery_left
+Ka 0.0 0.0 0.0
+Kd 1.000 0.000 0.235
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl arteries_cardiovascular__common_carotid_artery_right
+Ka 0.0 0.0 0.0
+Kd 1.000 0.000 0.235
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl other__costal_cartilages
+Ka 0.0 0.0 0.0
+Kd 0.784 0.784 0.784
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl digestive__duodenum
+Ka 0.0 0.0 0.0
+Kd 1.000 0.753 0.796
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl digestive__esophagus
+Ka 0.0 0.0 0.0
+Kd 1.000 0.753 0.796
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__femur_left
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__femur_right
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl urinary__gallbladder
+Ka 0.0 0.0 0.0
+Kd 0.000 1.000 0.000
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl muscular__gluteus_maximus_left
+Ka 0.0 0.0 0.0
+Kd 0.718 0.337 0.106
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl muscular__gluteus_maximus_right
+Ka 0.0 0.0 0.0
+Kd 0.718 0.337 0.106
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl muscular__gluteus_medius_left
+Ka 0.0 0.0 0.0
+Kd 0.718 0.337 0.106
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl muscular__gluteus_medius_right
+Ka 0.0 0.0 0.0
+Kd 0.718 0.337 0.106
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl muscular__gluteus_minimus_left
+Ka 0.0 0.0 0.0
+Kd 0.718 0.337 0.106
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl muscular__gluteus_minimus_right
+Ka 0.0 0.0 0.0
+Kd 0.718 0.337 0.106
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl heart_cardiovascular__heart
+Ka 0.0 0.0 0.0
+Kd 0.784 0.353 0.275
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl other__hip_left
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl other__hip_right
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__humerus_left
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__humerus_right
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl arteries_cardiovascular__iliac_artery_left
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl arteries_cardiovascular__iliac_artery_right
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl veins_cardiovascular__iliac_vena_left
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl veins_cardiovascular__iliac_vena_right
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl other__iliopsoas_left
+Ka 0.0 0.0 0.0
+Kd 0.784 0.784 0.784
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl other__iliopsoas_right
+Ka 0.0 0.0 0.0
+Kd 0.784 0.784 0.784
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl veins_cardiovascular__inferior_vena_cava
+Ka 0.0 0.0 0.0
+Kd 0.000 0.392 1.000
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl urinary__kidney_left
+Ka 0.0 0.0 0.0
+Kd 0.545 0.271 0.075
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl urinary__kidney_right
+Ka 0.0 0.0 0.0
+Kd 0.545 0.271 0.075
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl digestive__liver
+Ka 0.0 0.0 0.0
+Kd 0.588 0.039 0.039
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl respiratory__lung_lower_lobe_left
+Ka 0.0 0.0 0.0
+Kd 1.000 0.714 0.757
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl respiratory__lung_lower_lobe_right
+Ka 0.0 0.0 0.0
+Kd 1.000 0.714 0.757
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl respiratory__lung_middle_lobe_right
+Ka 0.0 0.0 0.0
+Kd 1.000 0.714 0.757
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl respiratory__lung_upper_lobe_left
+Ka 0.0 0.0 0.0
+Kd 1.000 0.714 0.757
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl respiratory__lung_upper_lobe_right
+Ka 0.0 0.0 0.0
+Kd 1.000 0.714 0.757
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl digestive__pancreas
+Ka 0.0 0.0 0.0
+Kd 1.000 1.000 0.000
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl veins_cardiovascular__portal_vein_and_splenic_vein
+Ka 0.0 0.0 0.0
+Kd 0.784 0.196 0.961
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl reproductive__prostate
+Ka 0.0 0.0 0.0
+Kd 0.765 0.000 0.784
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl veins_cardiovascular__pulmonary_vein
+Ka 0.0 0.0 0.0
+Kd 0.000 0.392 1.000
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_left_1
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_left_10
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_left_11
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_left_12
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_left_2
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_left_3
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_left_4
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_left_5
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_left_6
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_left_7
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_left_8
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_left_9
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_right_1
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_right_10
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_right_11
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_right_12
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_right_2
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_right_3
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_right_4
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_right_5
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_right_6
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_right_7
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_right_8
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__rib_right_9
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__sacrum
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__scapula_left
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__scapula_right
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl other__small_bowel
+Ka 0.0 0.0 0.0
+Kd 0.784 0.784 0.784
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl other__spinal_cord
+Ka 0.0 0.0 0.0
+Kd 0.784 0.784 0.784
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl digestive__spleen
+Ka 0.0 0.0 0.0
+Kd 0.824 0.118 0.627
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__sternum
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl digestive__stomach
+Ka 0.0 0.0 0.0
+Kd 1.000 0.753 0.796
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl arteries_cardiovascular__subclavian_artery_left
+Ka 0.0 0.0 0.0
+Kd 1.000 0.000 0.235
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl arteries_cardiovascular__subclavian_artery_right
+Ka 0.0 0.0 0.0
+Kd 1.000 0.000 0.235
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl veins_cardiovascular__superior_vena_cava
+Ka 0.0 0.0 0.0
+Kd 0.000 0.392 1.000
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl endocrine__thyroid_gland
+Ka 0.0 0.0 0.0
+Kd 0.933 0.510 0.098
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl respiratory__trachea
+Ka 0.0 0.0 0.0
+Kd 1.000 1.000 1.000
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl urinary__urinary_bladder
+Ka 0.0 0.0 0.0
+Kd 0.000 1.000 0.000
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__vertebrae_L1
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__vertebrae_L2
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__vertebrae_L3
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__vertebrae_L4
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__vertebrae_L5
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__vertebrae_S1
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__vertebrae_T1
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__vertebrae_T10
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__vertebrae_T11
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__vertebrae_T12
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__vertebrae_T2
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__vertebrae_T3
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__vertebrae_T4
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__vertebrae_T5
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__vertebrae_T6
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__vertebrae_T7
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__vertebrae_T8
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+
+newmtl skeletal__vertebrae_T9
+Ka 0.0 0.0 0.0
+Kd 0.933 0.808 0.702
+Ks 0.0 0.0 0.0
+illum 2
+d 1.0
+Ns 0.0
+

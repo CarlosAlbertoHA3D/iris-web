@@ -1,0 +1,35 @@
+# Python
+*.pyc
+__pycache__/
+.venv/
+*.egg-info/
+.pytest_cache/
+.aws-sam/
+
+# Node
+node_modules/
+dist/
+build/
+.cache/
+
+# Environment
+# .env
+# .env.local
+
+# AWS
+packaged.yaml
+/tmp/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

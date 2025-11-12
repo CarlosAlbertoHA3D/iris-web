@@ -1,0 +1,8 @@
+fastapi>=0.110,<1
+uvicorn[standard]>=0.24,<1
+numpy>=1.24
+nibabel>=5.1
+scikit-image>=0.21
+open3d>=0.17
+TotalSegmentator>=2.2.1
+python-multipart>=0.0.9

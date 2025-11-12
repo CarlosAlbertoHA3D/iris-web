@@ -1,0 +1,872 @@
+{
+  "endocrine": [
+    {
+      "object_name": "adrenal_gland_left",
+      "color": [
+        238,
+        130,
+        25
+      ]
+    },
+    {
+      "object_name": "adrenal_gland_right",
+      "color": [
+        238,
+        130,
+        25
+      ]
+    },
+    {
+      "object_name": "thyroid_gland",
+      "color": [
+        238,
+        130,
+        25
+      ]
+    }
+  ],
+  "arteries_cardiovascular": [
+    {
+      "object_name": "aorta",
+      "color": [
+        255,
+        0,
+        60
+      ]
+    },
+    {
+      "object_name": "brachiocephalic_trunk",
+      "color": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "object_name": "common_carotid_artery_left",
+      "color": [
+        255,
+        0,
+        60
+      ]
+    },
+    {
+      "object_name": "common_carotid_artery_right",
+      "color": [
+        255,
+        0,
+        60
+      ]
+    },
+    {
+      "object_name": "iliac_artery_left",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "iliac_artery_right",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "subclavian_artery_left",
+      "color": [
+        255,
+        0,
+        60
+      ]
+    },
+    {
+      "object_name": "subclavian_artery_right",
+      "color": [
+        255,
+        0,
+        60
+      ]
+    }
+  ],
+  "heart_cardiovascular": [
+    {
+      "object_name": "atrial_appendage_left",
+      "color": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "object_name": "heart",
+      "color": [
+        200,
+        90,
+        70
+      ]
+    }
+  ],
+  "other": [
+    {
+      "object_name": "autochthon_left",
+      "color": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "object_name": "autochthon_right",
+      "color": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "object_name": "clavicula_left",
+      "color": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "object_name": "clavicula_right",
+      "color": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "object_name": "costal_cartilages",
+      "color": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "object_name": "hip_left",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "hip_right",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "iliopsoas_left",
+      "color": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "object_name": "iliopsoas_right",
+      "color": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "object_name": "small_bowel",
+      "color": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "object_name": "spinal_cord",
+      "color": [
+        200,
+        200,
+        200
+      ]
+    }
+  ],
+  "veins_cardiovascular": [
+    {
+      "object_name": "brachiocephalic_vein_left",
+      "color": [
+        0,
+        100,
+        255
+      ]
+    },
+    {
+      "object_name": "brachiocephalic_vein_right",
+      "color": [
+        0,
+        100,
+        255
+      ]
+    },
+    {
+      "object_name": "iliac_vena_left",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "iliac_vena_right",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "inferior_vena_cava",
+      "color": [
+        0,
+        100,
+        255
+      ]
+    },
+    {
+      "object_name": "portal_vein_and_splenic_vein",
+      "color": [
+        200,
+        50,
+        245
+      ]
+    },
+    {
+      "object_name": "pulmonary_vein",
+      "color": [
+        0,
+        100,
+        255
+      ]
+    },
+    {
+      "object_name": "superior_vena_cava",
+      "color": [
+        0,
+        100,
+        255
+      ]
+    }
+  ],
+  "digestive": [
+    {
+      "object_name": "colon",
+      "color": [
+        200,
+        125,
+        140
+      ]
+    },
+    {
+      "object_name": "duodenum",
+      "color": [
+        255,
+        192,
+        203
+      ]
+    },
+    {
+      "object_name": "esophagus",
+      "color": [
+        255,
+        192,
+        203
+      ]
+    },
+    {
+      "object_name": "liver",
+      "color": [
+        150,
+        10,
+        10
+      ]
+    },
+    {
+      "object_name": "pancreas",
+      "color": [
+        255,
+        255,
+        0
+      ]
+    },
+    {
+      "object_name": "spleen",
+      "color": [
+        210,
+        30,
+        160
+      ]
+    },
+    {
+      "object_name": "stomach",
+      "color": [
+        255,
+        192,
+        203
+      ]
+    }
+  ],
+  "skeletal": [
+    {
+      "object_name": "femur_left",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "femur_right",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "humerus_left",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "humerus_right",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_left_1",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_left_10",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_left_11",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_left_12",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_left_2",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_left_3",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_left_4",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_left_5",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_left_6",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_left_7",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_left_8",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_left_9",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_right_1",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_right_10",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_right_11",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_right_12",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_right_2",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_right_3",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_right_4",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_right_5",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_right_6",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_right_7",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_right_8",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "rib_right_9",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "sacrum",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "scapula_left",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "scapula_right",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "sternum",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "vertebrae_L1",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "vertebrae_L2",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "vertebrae_L3",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "vertebrae_L4",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "vertebrae_L5",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "vertebrae_S1",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "vertebrae_T1",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "vertebrae_T10",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "vertebrae_T11",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "vertebrae_T12",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "vertebrae_T2",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "vertebrae_T3",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "vertebrae_T4",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "vertebrae_T5",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "vertebrae_T6",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "vertebrae_T7",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "vertebrae_T8",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    },
+    {
+      "object_name": "vertebrae_T9",
+      "color": [
+        238,
+        206,
+        179
+      ]
+    }
+  ],
+  "urinary": [
+    {
+      "object_name": "gallbladder",
+      "color": [
+        0,
+        255,
+        0
+      ]
+    },
+    {
+      "object_name": "kidney_left",
+      "color": [
+        139,
+        69,
+        19
+      ]
+    },
+    {
+      "object_name": "kidney_right",
+      "color": [
+        139,
+        69,
+        19
+      ]
+    },
+    {
+      "object_name": "urinary_bladder",
+      "color": [
+        0,
+        255,
+        0
+      ]
+    }
+  ],
+  "muscular": [
+    {
+      "object_name": "gluteus_maximus_left",
+      "color": [
+        183,
+        86,
+        27
+      ]
+    },
+    {
+      "object_name": "gluteus_maximus_right",
+      "color": [
+        183,
+        86,
+        27
+      ]
+    },
+    {
+      "object_name": "gluteus_medius_left",
+      "color": [
+        183,
+        86,
+        27
+      ]
+    },
+    {
+      "object_name": "gluteus_medius_right",
+      "color": [
+        183,
+        86,
+        27
+      ]
+    },
+    {
+      "object_name": "gluteus_minimus_left",
+      "color": [
+        183,
+        86,
+        27
+      ]
+    },
+    {
+      "object_name": "gluteus_minimus_right",
+      "color": [
+        183,
+        86,
+        27
+      ]
+    }
+  ],
+  "respiratory": [
+    {
+      "object_name": "lung_lower_lobe_left",
+      "color": [
+        255,
+        182,
+        193
+      ]
+    },
+    {
+      "object_name": "lung_lower_lobe_right",
+      "color": [
+        255,
+        182,
+        193
+      ]
+    },
+    {
+      "object_name": "lung_middle_lobe_right",
+      "color": [
+        255,
+        182,
+        193
+      ]
+    },
+    {
+      "object_name": "lung_upper_lobe_left",
+      "color": [
+        255,
+        182,
+        193
+      ]
+    },
+    {
+      "object_name": "lung_upper_lobe_right",
+      "color": [
+        255,
+        182,
+        193
+      ]
+    },
+    {
+      "object_name": "trachea",
+      "color": [
+        255,
+        255,
+        255
+      ]
+    }
+  ],
+  "reproductive": [
+    {
+      "object_name": "prostate",
+      "color": [
+        195,
+        0,
+        200
+      ]
+    }
+  ]
+}
