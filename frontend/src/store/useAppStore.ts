@@ -1,7 +1,7 @@
 import { create, type StateCreator } from 'zustand'
 import { loadImageFromFiles } from '../services/itkLoader'
 
-export type JobStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED'
+export type JobStatus = 'PENDING' | 'RUNNING' | 'PROCESSING' | 'SUBMITTED' | 'SUCCEEDED' | 'FAILED'
 
 export type Pane = 'sagittal' | 'coronal' | 'axial' | '3d'
 
@@ -191,45 +191,120 @@ const creator: StateCreator<AppState> = (set, get) => ({
   toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
   startProcessing: async () => {
     let backend = (import.meta as any).env?.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
-    const id = `local-${Date.now()}`
+    const id = `aws-${Date.now()}`
     set({ job: { id, status: 'RUNNING', progress: 0 } })
     try {
-      // Check backend health and try localhost fallback if needed
+      // Check backend health
       const healthy = await fetch(`${backend}/healthz`, { method: 'GET' }).then(r => r.ok).catch(() => false)
       if (!healthy) {
-        const alt = backend.includes('127.0.0.1') ? backend.replace('127.0.0.1', 'localhost') : backend.replace('localhost', '127.0.0.1')
-        const healthyAlt = await fetch(`${alt}/healthz`, { method: 'GET' }).then(r => r.ok).catch(() => false)
-        if (healthyAlt) backend = alt
-        else throw new Error(`Backend offline at ${backend}. Start the server (uvicorn) and try again.`)
+        throw new Error(`Backend offline at ${backend}. Please check your API Gateway.`)
       }
+      
       // Pick a NIfTI from lastLocalFiles
       const { lastLocalFiles } = get()
       const nifti = (lastLocalFiles || []).find(f => /\.nii(\.gz)?$/i.test(f.name)) || lastLocalFiles?.[0]
       if (!nifti) throw new Error('No local NIfTI file available to process.')
 
-      const fd = new FormData()
-      fd.append('file', nifti, nifti.name)
-      fd.append('device', 'cpu')
-      fd.append('fast', 'true')
-      fd.append('reduction_percent', '90')
+      // Step 1: Get presigned URL for upload
+      console.log('[process] Step 1: Requesting upload URL...')
+      set((s) => ({ job: { ...s.job, progress: 5 } }))
+      
+      const uploadResp = await fetch(`${backend}/upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: nifti.name,
+          contentType: nifti.type || 'application/octet-stream'
+        })
+      })
+      
+      if (!uploadResp.ok) {
+        const error = await uploadResp.text()
+        throw new Error(`Upload request failed: ${error}`)
+      }
+      
+      const uploadData = await uploadResp.json()
+      console.log('[process] Upload response:', uploadData)
+      
+      if (!uploadData.ok || !uploadData.uploadUrl || !uploadData.jobId) {
+        throw new Error('Invalid upload response from server')
+      }
 
-      set((s) => ({ job: { ...s.job, progress: 10 } }))
-      const resp = await fetch(`${backend}/process/totalseg`, { method: 'POST', body: fd })
-      if (!resp.ok) throw new Error(`Backend error: ${resp.status}`)
-      const meta = await resp.json()
-      // eslint-disable-next-line no-console
-      console.log('[process] backend meta:', meta)
+      const jobId = uploadData.jobId
+      set({ job: { id: jobId, status: 'RUNNING', progress: 10 } })
 
+      // Step 2: Upload file to S3 using presigned URL
+      console.log('[process] Step 2: Uploading file to S3...')
+      const s3Upload = await fetch(uploadData.uploadUrl, {
+        method: 'PUT',
+        body: nifti,
+        headers: {
+          'Content-Type': nifti.type || 'application/octet-stream'
+        }
+      })
+
+      if (!s3Upload.ok) {
+        throw new Error(`S3 upload failed: ${s3Upload.status}`)
+      }
+
+      console.log('[process] File uploaded to S3 successfully')
+      set((s) => ({ job: { ...s.job, progress: 30 } }))
+
+      // Step 3: Trigger processing
+      console.log('[process] Step 3: Starting SageMaker processing...')
+      const processResp = await fetch(`${backend}/process/totalseg`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobId: jobId,
+          device: 'gpu',
+          fast: true,
+          reduction_percent: 90
+        })
+      })
+
+      if (!processResp.ok) {
+        const error = await processResp.text()
+        throw new Error(`Process request failed: ${error}`)
+      }
+
+      const meta = await processResp.json()
+      console.log('[process] Processing started:', meta)
+
+      // Note: Processing is now asynchronous. 
+      // For now, we'll show the job is submitted and wait for completion
+      // TODO: Implement polling for job status
+      
+      set((s) => ({ job: { ...s.job, progress: 50, status: 'PROCESSING' } }))
+      console.log('[process] Job submitted to SageMaker. JobId:', jobId)
+      console.log('[process] This may take 15-25 minutes on first run (endpoint creation + processing)')
+      console.log('[process] Subsequent runs will be faster (10-15 minutes)')
+      
+      // For MVP: show success message that processing started
+      // The user will need to manually check back or we need to implement polling
+      set((s) => ({ 
+        job: { 
+          ...s.job, 
+          progress: 100, 
+          status: 'SUBMITTED',
+          message: 'Processing started on SageMaker. This may take 15-25 minutes. Check back later for results.' 
+        } 
+      }))
+      
+      // TODO: Implement proper polling and result fetching
+      // For now, we'll just return early
+      
+      /* Original code for when polling is implemented:
       set((s) => ({ job: { ...s.job, progress: 70 } }))
       const relJson = meta?.artifacts?.json
       const relObj = meta?.artifacts?.obj
       const relMtl = meta?.artifacts?.mtl
       const relZip = meta?.artifacts?.zip
       if (!relJson || !relObj || !relMtl) throw new Error('Artifacts missing from backend response')
-      const jsonUrlAbs = `${backend}${relJson}`
-      const objUrlAbs = `${backend}${relObj}`
-      const mtlUrlAbs = `${backend}${relMtl}`
-      const zipUrlAbs = relZip ? `${backend}${relZip}` : ''
+      const jsonUrlAbs = `${backend}/files/${jobId}/Result.json`
+      const objUrlAbs = `${backend}/files/${jobId}/Result.obj`
+      const mtlUrlAbs = `${backend}/files/${jobId}/materials.mtl`
+      const zipUrlAbs = relZip ? `${backend}/files/${jobId}/${relZip}` : ''
       set({ artifacts: { obj: objUrlAbs, mtl: mtlUrlAbs, json: jsonUrlAbs, zip: zipUrlAbs } })
 
       const jsonResp = await fetch(jsonUrlAbs)
@@ -254,6 +329,7 @@ const creator: StateCreator<AppState> = (set, get) => ({
       })
       set({ structures })
       set((s) => ({ job: { ...s.job, progress: 100, status: 'SUCCEEDED' } }))
+      */
     } catch (e: any) {
       // eslint-disable-next-line no-console
       console.warn('[process] error:', e)
