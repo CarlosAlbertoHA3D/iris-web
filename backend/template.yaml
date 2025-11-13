@@ -21,7 +21,7 @@ Globals:
     Auth:
       Authorizers:
         CognitoAuthorizer:
-          UserPoolArn: !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/us-east-1_uXa0bwQNp'
+          UserPoolArn: !GetAtt CognitoUserPool.Arn
           Identity:
             Header: Authorization
 

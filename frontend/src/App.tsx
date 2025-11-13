@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Upload, Play, Download, Sun, Moon, Maximize2, Minimize2 } from 'lucide-react'
+import { Upload, Play, Download, Sun, Moon, Maximize2, Minimize2, ArrowLeft } from 'lucide-react'
 import { Button } from './components/ui/button'
 import { Switch } from './components/ui/switch'
 import { Label } from './components/ui/label'
@@ -11,7 +11,12 @@ import UploadsList from './components/UploadsList'
 import SidePanel from './components/SidePanel'
 import { useAppStore } from './store/useAppStore'
 
-export default function App() {
+interface AppProps {
+  isIntegrated?: boolean
+  onBackToDashboard?: () => void
+}
+
+export default function App({ isIntegrated = false, onBackToDashboard }: AppProps) {
   const theme = useAppStore(s => s.theme)
   const toggleTheme = useAppStore(s => s.toggleTheme)
   const job = useAppStore(s => s.job)
@@ -23,15 +28,39 @@ export default function App() {
   }, [theme])
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b bg-card/50 sticky top-0 z-10 backdrop-blur supports-[backdrop-filter]:bg-card/60">
+    <div className="min-h-screen flex flex-col" style={{ background: '#000000' }}>
+      <header style={{
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        background: 'rgba(255, 255, 255, 0.03)',
+        backdropFilter: 'blur(20px)',
+        position: 'sticky',
+        top: 0,
+        zIndex: 10
+      }}>
         <div className="mx-auto max-w-[1600px] px-4 py-3 flex items-center gap-3">
-          <div className="font-semibold tracking-tight text-lg">Iris Medical Viewer</div>
+          {isIntegrated && onBackToDashboard && (
+            <Button 
+              size="sm" 
+              variant="ghost" 
+              onClick={onBackToDashboard}
+              style={{
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Dashboard
+            </Button>
+          )}
+          <div className="font-semibold tracking-tight text-lg" style={{ color: 'white' }}>
+            {isIntegrated ? 'Upload Study' : 'Iris Medical Viewer'}
+          </div>
           <div className="ml-auto flex items-center gap-3">
-            <Button size="sm" variant="ghost" onClick={toggleTheme} title="Toggle theme">
+            <Button size="sm" variant="ghost" onClick={toggleTheme} title="Toggle theme" style={{ color: 'white' }}>
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
-            <Button size="sm" variant="secondary">Login</Button>
           </div>
         </div>
       </header>
