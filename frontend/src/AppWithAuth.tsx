@@ -1,10 +1,10 @@
 import { useState } from 'react'
+import { Authenticator, useAuthenticator } from '@aws-amplify/ui-react'
+import { useAppStore } from './store/useAppStore'
 import { LandingPage } from './components/Landing/LandingPage'
 import { Login } from './components/Auth/Login'
 import { Dashboard } from './components/Dashboard/Dashboard'
 import App from './App'
-import { Authenticator, useAuthenticator } from '@aws-amplify/ui-react'
-import { useAppStore } from './store/useAppStore'
 import './config/amplify'
 
 type View = 'dashboard' | 'viewer'
