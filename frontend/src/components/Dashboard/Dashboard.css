@@ -206,6 +206,14 @@
   margin-bottom: 1.25rem;
 }
 
+.image-card-status {
+  padding: 0.75rem 1rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  margin-bottom: 0.75rem;
+}
+
 .image-date {
   color: rgba(255, 255, 255, 0.6);
   font-size: 0.875rem;

@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { fetchAuthSession, signOut } from 'aws-amplify/auth'
 import { Upload, Eye, Download, LogOut, Trash2 } from 'lucide-react'
+import { ProcessingStatus } from '../ProcessingStatus'
 import './Dashboard.css'
 
 interface Image {
@@ -23,10 +24,46 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
   const [selectedImage, setSelectedImage] = useState<Image | null>(null)
   const [imageToDelete, setImageToDelete] = useState<Image | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const pollingIntervalRef = useRef<number | null>(null)
 
   useEffect(() => {
     loadImages()
+    
+    return () => {
+      // Cleanup polling on unmount
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+      }
+    }
   }, [])
+
+  // Start/stop polling based on processing jobs
+  useEffect(() => {
+    const hasProcessingJobs = images.some(
+      img => img.status === 'queued' || img.status === 'processing'
+    )
+
+    if (hasProcessingJobs && !pollingIntervalRef.current) {
+      // Start polling every 30 seconds
+      console.log('[Dashboard] Starting polling for processing jobs')
+      pollingIntervalRef.current = window.setInterval(() => {
+        console.log('[Dashboard] Polling for status updates')
+        loadImages()
+      }, 30000) // 30 seconds
+    } else if (!hasProcessingJobs && pollingIntervalRef.current) {
+      // Stop polling when no processing jobs
+      console.log('[Dashboard] Stopping polling - no processing jobs')
+      clearInterval(pollingIntervalRef.current)
+      pollingIntervalRef.current = null
+    }
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
+      }
+    }
+  }, [images])
 
   async function loadImages() {
     try {
@@ -184,6 +221,18 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
                   {img.status}
                 </span>
               </div>
+              
+              {/* Processing Status Indicator */}
+              {(img.status === 'queued' || img.status === 'processing' || img.status === 'completed') && (
+                <div className="image-card-status" onClick={(e) => e.stopPropagation()}>
+                  <ProcessingStatus 
+                    jobId={img.jobId} 
+                    status={img.status}
+                    onComplete={() => loadImages()}
+                  />
+                </div>
+              )}
+              
               <div className="image-card-body">
                 <p className="image-date">{formatDate(img.createdAt)}</p>
                 <p className="image-id">Job ID: {img.jobId}</p>
