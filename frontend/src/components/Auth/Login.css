@@ -1,0 +1,236 @@
+/* Auth Container - Black elegant theme */
+.auth-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000000;
+  padding: 2rem;
+}
+
+/* Override Amplify UI styles */
+:root {
+  --amplify-colors-background-primary: #000000;
+  --amplify-colors-background-secondary: rgba(255, 255, 255, 0.03);
+  --amplify-colors-border-primary: rgba(255, 255, 255, 0.1);
+  --amplify-colors-border-secondary: rgba(255, 255, 255, 0.15);
+  --amplify-colors-border-focus: rgba(255, 255, 255, 0.3);
+  --amplify-colors-font-primary: #ffffff;
+  --amplify-colors-font-secondary: rgba(255, 255, 255, 0.7);
+  --amplify-colors-font-tertiary: rgba(255, 255, 255, 0.5);
+  --amplify-colors-brand-primary-10: rgba(255, 255, 255, 0.05);
+  --amplify-colors-brand-primary-80: #ffffff;
+  --amplify-colors-brand-primary-90: #f5f5f5;
+  --amplify-colors-brand-primary-100: #ffffff;
+  --amplify-radii-small: 10px;
+  --amplify-radii-medium: 12px;
+  --amplify-radii-large: 14px;
+  --amplify-font-weights-normal: 400;
+  --amplify-font-weights-medium: 500;
+  --amplify-font-weights-semibold: 600;
+  --amplify-font-weights-bold: 600;
+  --amplify-space-small: 0.75rem;
+  --amplify-space-medium: 1rem;
+  --amplify-space-large: 1.5rem;
+}
+
+/* Authenticator container */
+[data-amplify-authenticator] {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 3rem;
+  max-width: 480px;
+  width: 100%;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* Form container */
+[data-amplify-authenticator] [data-amplify-container] {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+/* Headers */
+[data-amplify-authenticator] [data-amplify-router-content] > div > div:first-child {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+[data-amplify-authenticator] h3,
+[data-amplify-authenticator] h2 {
+  color: #ffffff;
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+}
+
+/* Form fields */
+[data-amplify-authenticator] label {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.01em;
+}
+
+[data-amplify-authenticator] input {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 0.875rem 1rem;
+  font-size: 0.9375rem;
+  transition: all 0.2s ease;
+  font-weight: 400;
+}
+
+[data-amplify-authenticator] input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+[data-amplify-authenticator] input:focus {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.3);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.05);
+}
+
+[data-amplify-authenticator] input:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Buttons */
+[data-amplify-authenticator] button[type="submit"],
+[data-amplify-authenticator] button[data-variation="primary"] {
+  background: #ffffff;
+  color: #000000;
+  border: none;
+  border-radius: 10px;
+  padding: 0.875rem 1.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+  margin-top: 0.5rem;
+  letter-spacing: 0.01em;
+}
+
+[data-amplify-authenticator] button[type="submit"]:hover,
+[data-amplify-authenticator] button[data-variation="primary"]:hover {
+  background: #f5f5f5;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(255, 255, 255, 0.2);
+}
+
+[data-amplify-authenticator] button[type="submit"]:active,
+[data-amplify-authenticator] button[data-variation="primary"]:active {
+  transform: translateY(0);
+}
+
+/* Link/secondary buttons */
+[data-amplify-authenticator] button[data-variation="link"],
+[data-amplify-authenticator] button:not([type="submit"]):not([data-variation="primary"]) {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  border: none;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  padding: 0.5rem;
+  transition: color 0.2s ease;
+}
+
+[data-amplify-authenticator] button[data-variation="link"]:hover,
+[data-amplify-authenticator] button:not([type="submit"]):not([data-variation="primary"]):hover {
+  color: #ffffff;
+  background: transparent;
+}
+
+/* Tab navigation */
+[data-amplify-authenticator] [data-amplify-router] {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 2rem;
+}
+
+[data-amplify-authenticator] [role="tablist"] button {
+  color: rgba(255, 255, 255, 0.6);
+  border-bottom: 2px solid transparent;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  font-size: 0.9375rem;
+  transition: all 0.2s ease;
+}
+
+[data-amplify-authenticator] [role="tablist"] button[aria-selected="true"] {
+  color: #ffffff;
+  border-bottom-color: #ffffff;
+  font-weight: 600;
+}
+
+[data-amplify-authenticator] [role="tablist"] button:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Error messages */
+[data-amplify-authenticator] [role="alert"],
+[data-amplify-authenticator] .amplify-alert {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #fca5a5;
+  padding: 0.875rem;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+/* Footer text */
+[data-amplify-authenticator] [data-amplify-footer] {
+  text-align: center;
+  margin-top: 1.5rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.875rem;
+}
+
+/* Loading state */
+[data-amplify-authenticator] [data-amplify-loader] {
+  border-color: rgba(255, 255, 255, 0.2);
+  border-top-color: #ffffff;
+}
+
+/* Field group spacing */
+[data-amplify-authenticator] [data-amplify-field-group] {
+  margin-bottom: 1.25rem;
+}
+
+/* Password requirements */
+[data-amplify-authenticator] [data-amplify-password-requirements] {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 0.875rem;
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+}
+
+[data-amplify-authenticator] [data-amplify-password-requirements] li {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+[data-amplify-authenticator] [data-amplify-password-requirements] li[data-valid="true"] {
+  color: #86efac;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  [data-amplify-authenticator] {
+    padding: 2rem 1.5rem;
+  }
+  
+  .auth-container {
+    padding: 1rem;
+  }
+}

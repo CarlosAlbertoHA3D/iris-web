@@ -1,5 +1,6 @@
 import { Authenticator } from '@aws-amplify/ui-react'
 import '@aws-amplify/ui-react/styles.css'
+import './Login.css'
 import '../../config/amplify'
 
 interface LoginProps {
@@ -8,45 +9,47 @@ interface LoginProps {
 
 export function Login({ children }: LoginProps) {
   return (
-    <Authenticator
-      signUpAttributes={['email']}
-      loginMechanisms={['email']}
-      formFields={{
-        signUp: {
-          email: {
-            order: 1,
-            placeholder: 'Ingresa tu email',
-            label: 'Email',
-            isRequired: true
+    <div className="auth-container">
+      <Authenticator
+        signUpAttributes={['email']}
+        loginMechanisms={['email']}
+        formFields={{
+          signUp: {
+            email: {
+              order: 1,
+              placeholder: 'Enter your email',
+              label: 'Email',
+              isRequired: true
+            },
+            password: {
+              order: 2,
+              placeholder: 'Create a password',
+              label: 'Password',
+              isRequired: true
+            },
+            confirm_password: {
+              order: 3,
+              placeholder: 'Confirm your password',
+              label: 'Confirm Password',
+              isRequired: true
+            }
           },
-          password: {
-            order: 2,
-            placeholder: 'Crea una contraseña',
-            label: 'Contraseña',
-            isRequired: true
-          },
-          confirm_password: {
-            order: 3,
-            placeholder: 'Confirma tu contraseña',
-            label: 'Confirmar Contraseña',
-            isRequired: true
+          signIn: {
+            username: {
+              placeholder: 'Enter your email',
+              label: 'Email',
+              isRequired: true
+            },
+            password: {
+              placeholder: 'Enter your password',
+              label: 'Password',
+              isRequired: true
+            }
           }
-        },
-        signIn: {
-          username: {
-            placeholder: 'Ingresa tu email',
-            label: 'Email',
-            isRequired: true
-          },
-          password: {
-            placeholder: 'Ingresa tu contraseña',
-            label: 'Contraseña',
-            isRequired: true
-          }
-        }
-      }}
-    >
-      {children}
-    </Authenticator>
+        }}
+      >
+        {children}
+      </Authenticator>
+    </div>
   )
 }

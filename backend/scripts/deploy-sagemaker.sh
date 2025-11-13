@@ -54,21 +54,41 @@ aws sagemaker create-model \
     --execution-role-arn ${ROLE_ARN} \
     --region ${REGION} || echo "Model already exists"
 
-# Step 7: Create endpoint configuration with GPU instance (on-demand)
-echo "⚙️  Creating endpoint configuration..."
+# Step 7: Delete old endpoint config if exists (to update to Serverless)
+echo "🗑️  Removing old endpoint configuration if exists..."
+aws sagemaker delete-endpoint-config --endpoint-config-name ${ENDPOINT_CONFIG_NAME} --region ${REGION} 2>/dev/null || true
+sleep 5
+
+# Step 8: Create Serverless endpoint configuration
+echo "⚙️  Creating Serverless endpoint configuration..."
 aws sagemaker create-endpoint-config \
     --endpoint-config-name ${ENDPOINT_CONFIG_NAME} \
     --production-variants \
-        VariantName=AllTraffic,ModelName=${MODEL_NAME},InstanceType=ml.g4dn.xlarge,InitialInstanceCount=1,ServerlessConfig={MemorySizeInMB=4096,MaxConcurrency=1} \
-    --region ${REGION} || echo "Endpoint config already exists"
+        VariantName=AllTraffic,ModelName=${MODEL_NAME},ServerlessConfig={MemorySizeInMB=6144,MaxConcurrency=5} \
+    --region ${REGION}
 
-# Step 8: Create endpoint (on-demand, scales to 0 when not in use)
-echo "🎯 Creating SageMaker endpoint..."
+# Step 9: Delete old endpoint if exists
+echo "🗑️  Removing old endpoint if exists..."
+aws sagemaker delete-endpoint --endpoint-name ${ENDPOINT_NAME} --region ${REGION} 2>/dev/null || true
+sleep 10
+
+# Step 10: Create Serverless endpoint (scales to 0 automatically)
+echo "🎯 Creating SageMaker Serverless endpoint..."
 aws sagemaker create-endpoint \
     --endpoint-name ${ENDPOINT_NAME} \
     --endpoint-config-name ${ENDPOINT_CONFIG_NAME} \
-    --region ${REGION} || echo "Endpoint already exists"
+    --region ${REGION}
 
-echo "✅ SageMaker endpoint deployment initiated!"
-echo "📊 Monitor status with: aws sagemaker describe-endpoint --endpoint-name ${ENDPOINT_NAME} --region ${REGION}"
+echo ""
+echo "✅ SageMaker Serverless endpoint deployment initiated!"
+echo ""
+echo "📊 Key features:"
+echo "   • Scales to 0 when not in use (no cost)"
+echo "   • Scales up automatically when requests arrive"
+echo "   • Memory: 6GB, Max concurrent requests: 5"
+echo "   • Only pay for inference time (~\$0.12 per image processed)"
+echo ""
+echo "📊 Monitor status with:"
+echo "   aws sagemaker describe-endpoint --endpoint-name ${ENDPOINT_NAME} --region ${REGION}"
+echo ""
 echo "⏰ This may take 5-10 minutes to complete."

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Mesh processing utilities (optimized for SageMaker Serverless)
-Uses trimesh instead of open3d for smaller image size
+Mesh processing utilities (extracted from original app.py)
 """
 
 import json
@@ -11,7 +10,7 @@ from typing import List, Tuple, Optional
 import numpy as np
 import nibabel as nib
 from skimage import measure
-import trimesh
+import open3d as o3d
 
 
 def get_system_for_subobject(obj_name_original: str) -> str:
@@ -49,25 +48,25 @@ def get_system_for_subobject(obj_name_original: str) -> str:
         if kw in name:
             return "digestive"
     skeletal_keywords = [
-        "vertebra", "rib", "scapula", "femur", "clavicle", "humerus",
-        "hip", "iliac", "sacrum", "bone", "mandible", "cranium", "skull"
+        "bone", "rib", "vertebra", "scapula", "femur", "clavicle", "humerus",
+        "iliac", "sacrum", "sternum", "mandible", "costal cartilages",
+        "left hip", "right hip"
     ]
     for kw in skeletal_keywords:
         if kw in name:
             return "skeletal"
-    muscular_keywords = ["muscle", "gluteus", "psoas"]
+    muscular_keywords = ["muscle", "gluteus", "trapezius", "temporalis","levator",
+        "scalene","pterygoid","digastric","levator","constrictor","sterno","thyrohyoid"]
     for kw in muscular_keywords:
         if kw in name:
             return "muscular"
-    urinary_keywords = ["kidney", "urinary bladder", "bladder", "ureter"]
+    urinary_keywords = ["kidney", "bladder", "ureter"]
     for kw in urinary_keywords:
         if kw in name:
             return "urinary"
-    reproductive_keywords = ["prostate", "uterus", "ovary", "testis"]
-    for kw in reproductive_keywords:
-        if kw in name:
-            return "reproductive"
-    endocrine_keywords = ["thyroid", "adrenal", "pituitary"]
+    if "prostate" in name:
+        return "reproductive"
+    endocrine_keywords = ["gland", "thyroid"]
     for kw in endocrine_keywords:
         if kw in name:
             return "endocrine"
@@ -77,6 +76,27 @@ def get_system_for_subobject(obj_name_original: str) -> str:
 def get_color_for_subobject(obj_name_original: str) -> Tuple[int, int, int]:
     name = obj_name_original.lower()
     specific = {
+        "brachiocephalic artery": (255, 0, 0),
+        "brachiocephalic trunk": (255, 0, 0),
+        "pulmonary artery": (70, 230, 120),
+        "common iliac artery": (255, 0, 0),
+        "vertebral artery": (255, 30, 30),
+        "portal vein": (200, 50, 245),
+        "splenic vein": (200, 50, 245),
+        "portal_vein_and_splenic_vein": (200, 50, 245),
+        "skin": (240, 205, 185),
+        "pulmonary veins": (4, 220, 250),
+        "blood vessel": (220, 180, 255),
+        "atrium_left": (250, 120, 100),
+        "left atrium": (250, 120, 100),
+        "atrium_right": (245, 115, 70),
+        "right atrium": (245, 115, 70),
+        "atrium": (248, 118, 85),
+        "ventricle_left": (200, 90, 70),
+        "left ventricle": (200, 90, 70),
+        "ventricle_right": (192, 44, 0),
+        "right ventricle": (192, 44, 0),
+        "myocardium": (200, 90, 70),
         "heartchambers_highres": (200, 90, 70),
         "gland": (238, 130, 25),
         "brain": (255, 180, 184),
@@ -143,25 +163,16 @@ def get_color_for_subobject(obj_name_original: str) -> Tuple[int, int, int]:
     return (200, 200, 200)
 
 
-def clean_mesh(mesh: trimesh.Trimesh):
-    """Clean mesh using trimesh functions"""
-    try:
-        # Remove degenerate faces
-        mesh.remove_degenerate_faces()
-        # Remove duplicate faces
-        mesh.remove_duplicate_faces()
-        # Merge vertices that are very close
-        mesh.merge_vertices()
-        # Remove unreferenced vertices
-        mesh.remove_unreferenced_vertices()
-        # Fix normals
-        mesh.fix_normals()
-    except Exception as e:
-        print(f"[clean_mesh] warning: {e}")
+def clean_mesh(mesh: o3d.geometry.TriangleMesh):
+    mesh.remove_degenerate_triangles()
+    mesh.remove_duplicated_triangles()
+    mesh.remove_duplicated_vertices()
+    mesh.remove_non_manifold_edges()
+    mesh.remove_unreferenced_vertices()
+    mesh.compute_vertex_normals()
 
 
-def mask_to_mesh(nii_path: Path, level: float = 0.5) -> Optional[trimesh.Trimesh]:
-    """Convert NIFTI mask to trimesh mesh using marching cubes"""
+def mask_to_mesh(nii_path: Path, level: float = 0.5) -> Optional[o3d.geometry.TriangleMesh]:
     try:
         img = nib.load(str(nii_path))
         data = img.get_fdata()
@@ -171,9 +182,10 @@ def mask_to_mesh(nii_path: Path, level: float = 0.5) -> Optional[trimesh.Trimesh
         verts, faces, normals, values = measure.marching_cubes(data, level=level, spacing=spacing)
         if len(verts) == 0 or len(faces) == 0:
             return None
-        
-        # Create trimesh object
-        mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
+        mesh = o3d.geometry.TriangleMesh(
+            o3d.utility.Vector3dVector(verts),
+            o3d.utility.Vector3iVector(faces.astype(np.int32, copy=False))
+        )
         clean_mesh(mesh)
         return mesh
     except Exception as e:
@@ -181,8 +193,7 @@ def mask_to_mesh(nii_path: Path, level: float = 0.5) -> Optional[trimesh.Trimesh
         return None
 
 
-def export_obj_with_submeshes(meshes: List[trimesh.Trimesh], names: List[str], out_dir: Path) -> Tuple[Path, Path, Path]:
-    """Export meshes to OBJ + MTL + JSON with system grouping"""
+def export_obj_with_submeshes(meshes: List[o3d.geometry.TriangleMesh], names: List[str], out_dir: Path) -> Tuple[Path, Path, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     obj_path = out_dir / "Result.obj"
     mtl_name = "materials.mtl"
@@ -203,13 +214,11 @@ def export_obj_with_submeshes(meshes: List[trimesh.Trimesh], names: List[str], o
             f_obj.write(f"g {label}\n")
             f_obj.write(f"usemtl {label}\n")
 
-            # Write vertices
-            vs = mesh.vertices
+            vs = np.asarray(mesh.vertices)
             for vx, vy, vz in vs:
                 f_obj.write(f"v {vx} {vy} {vz}\n")
             
-            # Write faces
-            fs = mesh.faces
+            fs = np.asarray(mesh.triangles)
             for tri in fs:
                 i1 = int(tri[0]) + 1 + v_offset
                 i2 = int(tri[1]) + 1 + v_offset
@@ -223,7 +232,6 @@ def export_obj_with_submeshes(meshes: List[trimesh.Trimesh], names: List[str], o
                 "color": list(color)
             })
 
-    # Write MTL file
     with open(mtl_path, 'w', encoding='utf-8') as f_mtl:
         for name in names:
             real_name = name
@@ -239,7 +247,6 @@ def export_obj_with_submeshes(meshes: List[trimesh.Trimesh], names: List[str], o
             f_mtl.write("d 1.0\n")
             f_mtl.write("Ns 0.0\n\n")
 
-    # Write JSON metadata
     with open(json_path, 'w', encoding='utf-8') as f_json:
         json.dump(systems_data, f_json, indent=2)
 

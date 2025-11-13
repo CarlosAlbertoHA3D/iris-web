@@ -7,12 +7,37 @@ from typing import Dict, Any
 s3 = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
 sagemaker_runtime = boto3.client('sagemaker-runtime')
+lambda_client = boto3.client('lambda')
 
 S3_BUCKET = os.environ['S3_BUCKET']
 DYNAMODB_TABLE = os.environ['DYNAMODB_TABLE']
 SAGEMAKER_ENDPOINT_NAME = os.environ['SAGEMAKER_ENDPOINT_NAME']
+SAGEMAKER_MANAGER_FUNCTION = os.environ.get('SAGEMAKER_MANAGER_FUNCTION', 'iris-sagemaker-manager')
 
 table = dynamodb.Table(DYNAMODB_TABLE)
+
+
+def trigger_endpoint_wake():
+    """
+    Trigger SageMaker endpoint wake-up asynchronously
+    Does not wait for completion (may take 5-10 minutes)
+    """
+    print("Triggering SageMaker endpoint wake-up (async)...")
+    
+    try:
+        # Invoke wake function asynchronously (Event type doesn't wait for response)
+        response = lambda_client.invoke(
+            FunctionName=SAGEMAKER_MANAGER_FUNCTION,
+            InvocationType='Event',  # Async invocation
+            Payload=json.dumps({'action': 'wake'})
+        )
+        
+        print(f"Wake trigger sent. StatusCode: {response['StatusCode']}")
+        return response['StatusCode'] == 202
+            
+    except Exception as e:
+        print(f"Error triggering endpoint wake: {e}")
+        return False
 
 def lambda_handler(event, context):
     """
@@ -49,107 +74,51 @@ def lambda_handler(event, context):
         job = response['Item']
         input_s3_key = job.get('inputFile')
         
-        # Update status to processing
+        # Trigger SageMaker endpoint wake-up asynchronously
+        # This will create the endpoint if it doesn't exist (5-10 min) but doesn't wait
+        print(f"Triggering SageMaker endpoint wake-up...")
+        trigger_endpoint_wake()
+        
+        # Update status to queued (will be processed when endpoint is ready)
         table.update_item(
             Key={'jobId': job_id},
-            UpdateExpression='SET #status = :status, updatedAt = :now',
+            UpdateExpression='SET #status = :status, queuedAt = :now, updatedAt = :now',
             ExpressionAttributeNames={'#status': 'status'},
             ExpressionAttributeValues={
-                ':status': 'processing',
+                ':status': 'queued',
                 ':now': int(time.time())
             }
         )
         
-        # Prepare payload for SageMaker
-        payload = {
-            'jobId': job_id,
-            's3_bucket': S3_BUCKET,
-            's3_input_key': input_s3_key,
-            's3_output_prefix': f'results/{job_id}/',
-            'device': device,
-            'fast': fast,
-            'reduction_percent': reduction_percent
+        # Save processing parameters to DynamoDB for later use
+        table.update_item(
+            Key={'jobId': job_id},
+            UpdateExpression='SET processingParams = :params',
+            ExpressionAttributeValues={
+                ':params': {
+                    'device': device,
+                    'fast': fast,
+                    'reduction_percent': reduction_percent,
+                    's3_input_key': input_s3_key,
+                    's3_output_prefix': f'results/{job_id}/'
+                }
+            }
+        )
+        
+        # Return immediately - processing will happen asynchronously
+        # The actual SageMaker invocation will be triggered by a separate process
+        # once the endpoint is ready
+        return {
+            'statusCode': 202,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({
+                'ok': True,
+                'jobId': job_id,
+                'status': 'queued',
+                'message': 'Job queued for processing. Endpoint is waking up (5-10 min first time, then processing takes 10-15 min).',
+                'estimatedTime': '15-25 minutes for first job, 10-15 minutes for subsequent jobs'
+            })
         }
-        
-        # Invoke SageMaker endpoint asynchronously
-        # Note: We use async invocation to handle long-running inference
-        start_time = time.time()
-        
-        try:
-            response = sagemaker_runtime.invoke_endpoint_async(
-                EndpointName=SAGEMAKER_ENDPOINT_NAME,
-                InputLocation=f's3://{S3_BUCKET}/sagemaker-inputs/{job_id}/payload.json',
-                ContentType='application/json'
-            )
-            
-            # Save payload to S3 for async invocation
-            s3.put_object(
-                Bucket=S3_BUCKET,
-                Key=f'sagemaker-inputs/{job_id}/payload.json',
-                Body=json.dumps(payload),
-                ContentType='application/json'
-            )
-            
-            output_location = response.get('OutputLocation', '')
-            
-            # Update DynamoDB with processing info
-            table.update_item(
-                Key={'jobId': job_id},
-                UpdateExpression='SET sagemakerOutputLocation = :loc, processingStartedAt = :start',
-                ExpressionAttributeValues={
-                    ':loc': output_location,
-                    ':start': int(start_time)
-                }
-            )
-            
-            return {
-                'statusCode': 202,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({
-                    'ok': True,
-                    'jobId': job_id,
-                    'status': 'processing',
-                    'message': 'Processing started on SageMaker GPU endpoint'
-                })
-            }
-            
-        except Exception as sage_error:
-            # If async endpoint is not available, fall back to synchronous invocation
-            # (though this might timeout for long processing)
-            print(f"Async invocation failed, trying synchronous: {sage_error}")
-            
-            response = sagemaker_runtime.invoke_endpoint(
-                EndpointName=SAGEMAKER_ENDPOINT_NAME,
-                ContentType='application/json',
-                Body=json.dumps(payload)
-            )
-            
-            result = json.loads(response['Body'].read().decode())
-            elapsed = time.time() - start_time
-            
-            # Update DynamoDB with results
-            table.update_item(
-                Key={'jobId': job_id},
-                UpdateExpression='SET #status = :status, artifacts = :artifacts, elapsedSec = :elapsed, updatedAt = :now',
-                ExpressionAttributeNames={'#status': 'status'},
-                ExpressionAttributeValues={
-                    ':status': 'completed',
-                    ':artifacts': result.get('artifacts', {}),
-                    ':elapsed': round(elapsed, 1),
-                    ':now': int(time.time())
-                }
-            )
-            
-            return {
-                'statusCode': 200,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({
-                    'ok': True,
-                    'jobId': job_id,
-                    'elapsedSec': round(elapsed, 1),
-                    'artifacts': result.get('artifacts', {})
-                })
-            }
         
     except Exception as e:
         print(f"Error: {str(e)}")
