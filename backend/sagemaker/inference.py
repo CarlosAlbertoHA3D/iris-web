@@ -25,6 +25,10 @@ from mesh_processing import (
 )
 
 s3 = boto3.client('s3')
+dynamodb = boto3.resource('dynamodb')
+
+# Get DynamoDB table name from environment (set in SageMaker endpoint config)
+DYNAMODB_TABLE = os.environ.get('DYNAMODB_TABLE', 'iris-oculus-metadata')
 
 def model_fn(model_dir):
     """
@@ -135,6 +139,7 @@ def predict_fn(input_data: Dict[str, Any], model):
         print("Uploading results to S3")
         
         artifacts = {}
+        artifact_s3_keys = {}
         
         for local_path, artifact_name in [
             (obj_path, 'Result.obj'),
@@ -145,13 +150,33 @@ def predict_fn(input_data: Dict[str, Any], model):
             s3_key = f"{s3_output_prefix}{artifact_name}"
             s3.upload_file(str(local_path), s3_bucket, s3_key)
             artifacts[artifact_name.split('.')[0]] = f"/files/{job_id}/{artifact_name}"
+            artifact_s3_keys[artifact_name.split('.')[0]] = f"s3://{s3_bucket}/{s3_key}"
         
-        print(f"Job {job_id} completed successfully")
+        print(f"Job {job_id} completed successfully, updating DynamoDB...")
+        
+        # Update DynamoDB with completion status and artifact paths
+        try:
+            table = dynamodb.Table(DYNAMODB_TABLE)
+            table.update_item(
+                Key={'jobId': job_id},
+                UpdateExpression='SET #status = :status, completedAt = :now, updatedAt = :now, artifacts = :artifacts',
+                ExpressionAttributeNames={'#status': 'status'},
+                ExpressionAttributeValues={
+                    ':status': 'completed',
+                    ':now': int(time.time()),
+                    ':artifacts': artifact_s3_keys
+                }
+            )
+            print(f"DynamoDB updated for job {job_id}")
+        except Exception as e:
+            print(f"Warning: Failed to update DynamoDB: {e}")
+            # Continue anyway, files are already in S3
         
         return {
             'ok': True,
             'jobId': job_id,
-            'artifacts': artifacts
+            'artifacts': artifacts,
+            's3_artifacts': artifact_s3_keys
         }
 
 

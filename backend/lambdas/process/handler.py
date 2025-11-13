@@ -90,10 +90,18 @@ def lambda_handler(event, context):
             }
         )
         
-        # Save processing parameters to DynamoDB for later use
+        # Save processing parameters AND expected artifact paths to DynamoDB
+        # Frontend will use these paths to download files when ready
+        expected_artifacts = {
+            'obj': f's3://{S3_BUCKET}/results/{job_id}/Result.obj',
+            'mtl': f's3://{S3_BUCKET}/results/{job_id}/materials.mtl',
+            'json': f's3://{S3_BUCKET}/results/{job_id}/Result.json',
+            'zip': f's3://{S3_BUCKET}/results/{job_id}/result.zip'
+        }
+        
         table.update_item(
             Key={'jobId': job_id},
-            UpdateExpression='SET processingParams = :params',
+            UpdateExpression='SET processingParams = :params, expectedArtifacts = :artifacts',
             ExpressionAttributeValues={
                 ':params': {
                     'device': device,
@@ -101,7 +109,8 @@ def lambda_handler(event, context):
                     'reduction_percent': reduction_percent,
                     's3_input_key': input_s3_key,
                     's3_output_prefix': f'results/{job_id}/'
-                }
+                },
+                ':artifacts': expected_artifacts
             }
         )
         

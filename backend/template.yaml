@@ -304,6 +304,32 @@ Resources:
             Path: /studies/{jobId}/status
             Method: OPTIONS
 
+  # Lambda Function to update job status and artifacts after SageMaker processing
+  UpdateJobStatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: iris-update-job-status
+      CodeUri: lambdas/update-job-status/
+      Handler: handler.lambda_handler
+      Layers:
+        - !Ref DependenciesLayer
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MetadataTable
+      Events:
+        UpdateJobStatus:
+          Type: Api
+          Properties:
+            Path: /jobs/{jobId}/status
+            Method: POST
+            Auth:
+              Authorizer: NONE  # Will be called by SageMaker or internal polling
+        UpdateJobStatusOptions:
+          Type: Api
+          Properties:
+            Path: /jobs/{jobId}/status
+            Method: OPTIONS
+
   # Lambda Function for health check
   HealthFunction:
     Type: AWS::Serverless::Function

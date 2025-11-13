@@ -60,7 +60,7 @@ def lambda_handler(event, context):
         
         print(f"Found {len(images)} images for user {user_id}")
         
-        # Enrich images with presigned URLs for thumbnails if available
+        # Enrich images with presigned URLs for thumbnails and artifacts
         for img in images:
             # Generate presigned URL for the original file
             if 'inputFile' in img:
@@ -76,6 +76,30 @@ def lambda_handler(event, context):
                 except Exception as e:
                     print(f"Error generating presigned URL: {e}")
                     img['downloadUrl'] = None
+            
+            # If job is completed, generate presigned URLs for 3D artifacts
+            if img.get('status') == 'completed' and 'expectedArtifacts' in img:
+                artifacts_urls = {}
+                for artifact_type, s3_path in img['expectedArtifacts'].items():
+                    # Extract S3 key from s3://bucket/key format
+                    if s3_path.startswith('s3://'):
+                        # Remove s3://bucket/ prefix
+                        s3_key = '/'.join(s3_path.split('/')[3:])
+                        try:
+                            artifacts_urls[artifact_type] = s3.generate_presigned_url(
+                                'get_object',
+                                Params={
+                                    'Bucket': S3_BUCKET,
+                                    'Key': s3_key
+                                },
+                                ExpiresIn=3600
+                            )
+                        except Exception as e:
+                            print(f"Error generating presigned URL for {artifact_type}: {e}")
+                
+                if artifacts_urls:
+                    img['artifactUrls'] = artifacts_urls
+                    print(f"Generated {len(artifacts_urls)} artifact URLs for job {img['jobId']}")
         
         return {
             'statusCode': 200,
