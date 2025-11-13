@@ -14,9 +14,10 @@ interface Image {
 
 interface DashboardProps {
   onUploadNewStudy: () => void
+  onViewStudy?: (studyUrl: string, jobId: string) => void
 }
 
-export function Dashboard({ onUploadNewStudy }: DashboardProps) {
+export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
   const [images, setImages] = useState<Image[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedImage, setSelectedImage] = useState<Image | null>(null)
@@ -192,7 +193,11 @@ export function Dashboard({ onUploadNewStudy }: DashboardProps) {
                   className="btn-view"
                   onClick={(e) => {
                     e.stopPropagation()
-                    setSelectedImage(img)
+                    if (onViewStudy && img.downloadUrl) {
+                      onViewStudy(img.downloadUrl, img.jobId)
+                    } else {
+                      setSelectedImage(img)
+                    }
                   }}
                 >
                   <Eye className="btn-icon-sm" />

@@ -244,8 +244,7 @@ const creator: StateCreator<AppState> = (set, get) => ({
   toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
   startProcessing: async () => {
     let backend = (import.meta as any).env?.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
-    const id = `aws-${Date.now()}`
-    set({ job: { id, status: 'RUNNING', progress: 0 } })
+    set({ job: { id: '', status: 'RUNNING', progress: 0 } })
     try {
       // Get authentication token
       const { fetchAuthSession } = await import('aws-amplify/auth')
@@ -256,73 +255,88 @@ const creator: StateCreator<AppState> = (set, get) => ({
         throw new Error('Not authenticated. Please log in again.')
       }
 
-      // If there are queued uploads, upload them first
-      const { uploads } = get()
-      const anyQueued = uploads.some(u => u.status === 'queued')
-      if (anyQueued) {
-        console.log('[process] Uploading queued files first...')
-        await get().startUploads()
-        console.log('[process] Files uploaded, now processing...')
-      }
-
-      // Check backend health
-      const healthy = await fetch(`${backend}/healthz`, { method: 'GET' }).then(r => r.ok).catch(() => false)
-      if (!healthy) {
-        throw new Error(`Backend offline at ${backend}. Please check your API Gateway.`)
-      }
+      // Check if we already have a studyId (file already uploaded)
+      const { studyId, uploads } = get()
+      let jobId = studyId
       
-      // Pick a NIfTI from lastLocalFiles
-      const { lastLocalFiles } = get()
-      const nifti = (lastLocalFiles || []).find(f => /\.nii(\.gz)?$/i.test(f.name)) || lastLocalFiles?.[0]
-      if (!nifti) throw new Error('No local NIfTI file available to process.')
-
-      // Step 1: Get presigned URL for upload
-      console.log('[process] Step 1: Requesting upload URL...')
-      set((s) => ({ job: { ...s.job, progress: 5 } }))
-      
-      const uploadResp = await fetch(`${backend}/upload`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          filename: nifti.name,
-          contentType: nifti.type || 'application/octet-stream'
-        })
-      })
-      
-      if (!uploadResp.ok) {
-        const error = await uploadResp.text()
-        throw new Error(`Upload request failed: ${error}`)
-      }
-      
-      const uploadData = await uploadResp.json()
-      console.log('[process] Upload response:', uploadData)
-      
-      if (!uploadData.ok || !uploadData.uploadUrl || !uploadData.jobId) {
-        throw new Error('Invalid upload response from server')
-      }
-
-      const jobId = uploadData.jobId
-      set({ job: { id: jobId, status: 'RUNNING', progress: 10 } })
-
-      // Step 2: Upload file to S3 using presigned URL
-      console.log('[process] Step 2: Uploading file to S3...')
-      const s3Upload = await fetch(uploadData.uploadUrl, {
-        method: 'PUT',
-        body: nifti,
-        headers: {
-          'Content-Type': nifti.type || 'application/octet-stream'
+      // If no studyId, check if there are queued uploads and upload them
+      if (!jobId) {
+        const anyQueued = uploads.some(u => u.status === 'queued')
+        if (anyQueued) {
+          console.log('[process] Uploading queued files first...')
+          await get().startUploads()
+          // Get the studyId set by startUploads
+          jobId = get().studyId
+          console.log('[process] Files uploaded, jobId:', jobId)
         }
-      })
-
-      if (!s3Upload.ok) {
-        throw new Error(`S3 upload failed: ${s3Upload.status}`)
       }
 
-      console.log('[process] File uploaded to S3 successfully')
-      set((s) => ({ job: { ...s.job, progress: 30 } }))
+      // If still no jobId, need to upload a file
+      if (!jobId) {
+        console.log('[process] No study uploaded, creating new upload...')
+        
+        // Check backend health
+        const healthy = await fetch(`${backend}/healthz`, { method: 'GET' }).then(r => r.ok).catch(() => false)
+        if (!healthy) {
+          throw new Error(`Backend offline at ${backend}. Please check your API Gateway.`)
+        }
+        
+        // Pick a NIfTI from lastLocalFiles
+        const { lastLocalFiles } = get()
+        const nifti = (lastLocalFiles || []).find(f => /\.nii(\.gz)?$/i.test(f.name)) || lastLocalFiles?.[0]
+        if (!nifti) throw new Error('No file available to process. Please upload a file first.')
+
+        // Step 1: Get presigned URL for upload
+        console.log('[process] Step 1: Requesting upload URL...')
+        set((s) => ({ job: { ...s.job, progress: 5 } }))
+        
+        const uploadResp = await fetch(`${backend}/upload`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            filename: nifti.name,
+            contentType: nifti.type || 'application/octet-stream'
+          })
+        })
+        
+        if (!uploadResp.ok) {
+          const error = await uploadResp.text()
+          throw new Error(`Upload request failed: ${error}`)
+        }
+        
+        const uploadData = await uploadResp.json()
+        console.log('[process] Upload response:', uploadData)
+        
+        if (!uploadData.ok || !uploadData.uploadUrl || !uploadData.jobId) {
+          throw new Error('Invalid upload response from server')
+        }
+
+        jobId = uploadData.jobId
+        set({ job: { id: jobId, status: 'RUNNING', progress: 10 }, studyId: jobId })
+
+        // Step 2: Upload file to S3 using presigned URL
+        console.log('[process] Step 2: Uploading file to S3...')
+        const s3Upload = await fetch(uploadData.uploadUrl, {
+          method: 'PUT',
+          body: nifti,
+          headers: {
+            'Content-Type': nifti.type || 'application/octet-stream'
+          }
+        })
+
+        if (!s3Upload.ok) {
+          throw new Error(`S3 upload failed: ${s3Upload.status}`)
+        }
+
+        console.log('[process] File uploaded to S3 successfully')
+        set((s) => ({ job: { ...s.job, progress: 30 } }))
+      } else {
+        console.log('[process] Using already uploaded study:', jobId)
+        set({ job: { id: jobId, status: 'RUNNING', progress: 20 } })
+      }
 
       // Step 3: Trigger processing
       console.log('[process] Step 3: Starting SageMaker processing...')
