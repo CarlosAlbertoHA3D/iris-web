@@ -9,6 +9,8 @@ export default function UploadDropzone() {
   const [dragOver, setDragOver] = useState(false)
   const queueFiles = useAppStore(s => s.queueFiles)
   const loadLocalFiles = useAppStore(s => s.loadLocalFiles)
+  const uploads = useAppStore(s => s.uploads)
+  const job = useAppStore(s => s.job)
 
   const onFiles = useCallback((files: FileList | File[]) => {
     const arr = Array.from(files)
@@ -16,6 +18,14 @@ export default function UploadDropzone() {
     // Load locally into viewer (NIfTI or DICOM series)
     loadLocalFiles(arr)
   }, [queueFiles, loadLocalFiles])
+  
+  // Hide dropzone when uploading or processing (AFTER all hooks)
+  const anyUploading = uploads.some((u) => u.status === 'uploading')
+  const isProcessing = job.status === 'RUNNING' || job.status === 'PROCESSING'
+  
+  if (anyUploading || isProcessing) {
+    return null
+  }
 
   async function collectFilesFromItems(items: DataTransferItemList): Promise<File[]> {
     const result: File[] = []

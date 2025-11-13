@@ -11,23 +11,24 @@ export default function SidePanel() {
   const startProcessing = useAppStore(s => s.startProcessing)
   const studyId = useAppStore(s => s.studyId)
   const uploads = useAppStore(s => s.uploads)
-  const startUploads = useAppStore(s => s.startUploads)
+  const lastLocalFiles = useAppStore(s => s.lastLocalFiles)
   const viewer = useAppStore(s => s.viewer)
   const setWW = useAppStore(s => s.setWW)
   const setWL = useAppStore(s => s.setWL)
   const toggleCrosshair = useAppStore(s => s.toggleCrosshair)
+
+  // Only show "Process with AI" if there are files loaded
+  const hasFiles = (lastLocalFiles && lastLocalFiles.length > 0) || (uploads && uploads.length > 0)
+  const isProcessing = job.status === 'RUNNING' || job.status === 'PROCESSING'
 
   return (
     <div className="space-y-6">
       <section>
         <div className="font-medium mb-2">Study</div>
         <div className="text-sm text-muted-foreground">ID: {studyId ?? '—'}</div>
-        <div className="mt-2">
-          <Button className="w-full" onClick={startProcessing}><Play className="w-4 h-4 mr-1"/>Process with AI</Button>
-        </div>
-        {uploads.some(u => u.status === 'queued') && (
+        {hasFiles && !isProcessing && (
           <div className="mt-2">
-            <Button className="w-full" variant="outline" onClick={() => startUploads()}>Start Uploads</Button>
+            <Button className="w-full" onClick={startProcessing}><Play className="w-4 h-4 mr-1"/>Process with AI</Button>
           </div>
         )}
         <div className="mt-3">

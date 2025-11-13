@@ -252,6 +252,32 @@ Resources:
             Auth:
               Authorizer: CognitoAuthorizer
 
+  # Lambda Function to soft delete a study (protected with Cognito)
+  DeleteStudyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: iris-delete-study
+      CodeUri: lambdas/delete-study/
+      Handler: handler.lambda_handler
+      Layers:
+        - !Ref DependenciesLayer
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MetadataTable
+      Events:
+        DeleteStudy:
+          Type: Api
+          Properties:
+            Path: /studies/{jobId}
+            Method: DELETE
+            Auth:
+              Authorizer: CognitoAuthorizer
+        DeleteStudyOptions:
+          Type: Api
+          Properties:
+            Path: /studies/{jobId}
+            Method: OPTIONS
+
   # Lambda Function for health check
   HealthFunction:
     Type: AWS::Serverless::Function

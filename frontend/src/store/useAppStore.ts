@@ -134,34 +134,87 @@ const creator: StateCreator<AppState> = (set, get) => ({
   startUploads: async () => {
     const { uploads } = get()
     if (!uploads.length) return
+    
+    const backend = (import.meta as any).env?.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
+    
     try {
-      // TODO: integrate with backend createStudy + multipart upload
-      set({ studyId: `local-${Date.now()}` })
+      // Get authentication token
+      const { fetchAuthSession } = await import('aws-amplify/auth')
+      const session = await fetchAuthSession()
+      const token = session.tokens?.idToken?.toString()
+      
+      if (!token) {
+        throw new Error('Not authenticated. Please log in again.')
+      }
+
+      // Load files locally for visualization first
       try {
-        // Display locally in the viewer immediately with current queued files
         const files = uploads.map((u) => u.file)
-        // eslint-disable-next-line no-console
         console.log('[store] startUploads -> loadLocalFiles with', files.length, 'files')
         await get().loadLocalFiles(files)
       } catch (e) {
-        // eslint-disable-next-line no-console
         console.warn('[store] startUploads: loadLocalFiles failed:', e)
       }
+
+      // Upload each file to S3 via backend
       for (const u of uploads) {
-        set((s) => ({ uploads: s.uploads.map((it) => (it.id === u.id ? { ...it, status: 'uploading', progress: 0 } : it)) }))
-        let p = 0
-        await new Promise<void>((resolve) => {
-          const step = () => {
-            p = Math.min(100, p + Math.floor(8 + Math.random() * 15))
-            set((s) => ({ uploads: s.uploads.map((it) => (it.id === u.id ? { ...it, progress: p } : it)) }))
-            if (p >= 100) return resolve()
-            setTimeout(step, 250)
+        try {
+          set((s) => ({ uploads: s.uploads.map((it) => (it.id === u.id ? { ...it, status: 'uploading', progress: 0 } : it)) }))
+          
+          // Step 1: Get presigned URL
+          console.log(`[upload] Getting presigned URL for: ${u.file.name}`)
+          const uploadResp = await fetch(`${backend}/upload`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              filename: u.file.name,
+              contentType: u.file.type || 'application/octet-stream'
+            })
+          })
+          
+          if (!uploadResp.ok) {
+            throw new Error(`Upload request failed: ${uploadResp.status}`)
           }
-          setTimeout(step, 300)
-        })
-        set((s) => ({ uploads: s.uploads.map((it) => (it.id === u.id ? { ...it, status: 'done' } : it)) }))
+          
+          const uploadData = await uploadResp.json()
+          console.log(`[upload] Got presigned URL for: ${u.file.name}`)
+          
+          set((s) => ({ uploads: s.uploads.map((it) => (it.id === u.id ? { ...it, progress: 25 } : it)) }))
+          
+          // Step 2: Upload to S3
+          console.log(`[upload] Uploading to S3: ${u.file.name}`)
+          const s3Upload = await fetch(uploadData.uploadUrl, {
+            method: 'PUT',
+            body: u.file,
+            headers: {
+              'Content-Type': u.file.type || 'application/octet-stream'
+            }
+          })
+          
+          if (!s3Upload.ok) {
+            throw new Error(`S3 upload failed: ${s3Upload.status}`)
+          }
+          
+          console.log(`[upload] Successfully uploaded: ${u.file.name}`)
+          
+          // Mark as done
+          set((s) => ({ 
+            uploads: s.uploads.map((it) => (it.id === u.id ? { ...it, status: 'done', progress: 100 } : it)),
+            studyId: uploadData.jobId
+          }))
+          
+        } catch (e: any) {
+          console.error(`[upload] Error uploading ${u.file.name}:`, e)
+          set((s) => ({
+            uploads: s.uploads.map((it) => (it.id === u.id ? { ...it, status: 'error', error: e?.message || 'Upload failed' } : it))
+          }))
+        }
       }
     } catch (e: any) {
+      console.error('[upload] startUploads error:', e)
       set((s) => ({
         uploads: s.uploads.map((it) => (it.status === 'done' ? it : { ...it, status: 'error', error: e?.message || 'Upload failed' })),
       }))
@@ -201,6 +254,15 @@ const creator: StateCreator<AppState> = (set, get) => ({
       
       if (!token) {
         throw new Error('Not authenticated. Please log in again.')
+      }
+
+      // If there are queued uploads, upload them first
+      const { uploads } = get()
+      const anyQueued = uploads.some(u => u.status === 'queued')
+      if (anyQueued) {
+        console.log('[process] Uploading queued files first...')
+        await get().startUploads()
+        console.log('[process] Files uploaded, now processing...')
       }
 
       // Check backend health

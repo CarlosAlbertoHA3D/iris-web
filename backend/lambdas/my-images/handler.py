@@ -54,7 +54,9 @@ def lambda_handler(event, context):
             ScanIndexForward=False  # Sort by createdAt descending (newest first)
         )
         
-        images = response.get('Items', [])
+        # Filter out deleted studies
+        all_images = response.get('Items', [])
+        images = [img for img in all_images if not img.get('deleted', False)]
         
         print(f"Found {len(images)} images for user {user_id}")
         
