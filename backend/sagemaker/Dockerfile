@@ -50,12 +50,12 @@ RUN pip3 install --no-cache-dir \
     trimesh==3.23.5 \
     pymeshlab==2022.2.post4
 
-# Install API dependencies
+# Install API dependencies for SageMaker
 RUN pip3 install --no-cache-dir \
-    fastapi==0.110.0 \
-    uvicorn[standard]==0.24.0 \
     boto3==1.28.85 \
-    sagemaker-inference==1.9.0
+    flask==2.3.3 \
+    gunicorn==21.2.0 \
+    gevent==23.9.1
 
 # Clean up pip cache
 RUN pip3 cache purge && \
@@ -64,13 +64,20 @@ RUN pip3 cache purge && \
 # Copy inference code
 COPY inference.py /opt/ml/code/inference.py
 COPY mesh_processing.py /opt/ml/code/mesh_processing.py
+COPY serve /opt/ml/code/serve
+
+# Make serve script executable
+RUN chmod +x /opt/ml/code/serve
 
 # Set working directory
 WORKDIR /opt/ml/code
 
 # Set environment variables for SageMaker
 ENV SAGEMAKER_PROGRAM=inference.py
+ENV PATH="/opt/ml/code:${PATH}"
 
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=3s \
-    CMD python3 -c "print('healthy')" || exit 1
+# Expose port for SageMaker
+EXPOSE 8080
+
+# Use serve script as entrypoint
+ENTRYPOINT ["/opt/ml/code/serve"]

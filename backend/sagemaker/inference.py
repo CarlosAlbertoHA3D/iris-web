@@ -33,9 +33,14 @@ DYNAMODB_TABLE = os.environ.get('DYNAMODB_TABLE', 'iris-oculus-metadata')
 def model_fn(model_dir):
     """
     Load the model. For TotalSegmentator, the model is downloaded on first use.
+    This function must return quickly for SageMaker health checks to pass.
     """
-    print("Model initialized. TotalSegmentator will download weights on first use.")
-    return {"ready": True}
+    print("[inference] Model initialized. TotalSegmentator will download weights on first use.", flush=True)
+    return {
+        "ready": True,
+        "model_dir": model_dir,
+        "status": "initialized"
+    }
 
 
 def input_fn(request_body, request_content_type):
