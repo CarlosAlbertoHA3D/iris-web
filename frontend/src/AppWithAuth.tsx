@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Authenticator, useAuthenticator } from '@aws-amplify/ui-react'
 import { useAppStore } from './store/useAppStore'
-import { LandingPage } from './components/Landing/LandingPage.tsx'
-import { Login } from './components/Auth/Login.tsx'
-import { Dashboard } from './components/Dashboard/Dashboard.tsx'
+import { LandingPage } from './components/Landing'
+import { Login } from './components/Auth'
+import { Dashboard } from './components/Dashboard'
 import App from './App'
 import './config/amplify'
 
