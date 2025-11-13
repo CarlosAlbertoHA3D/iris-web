@@ -194,6 +194,15 @@ const creator: StateCreator<AppState> = (set, get) => ({
     const id = `aws-${Date.now()}`
     set({ job: { id, status: 'RUNNING', progress: 0 } })
     try {
+      // Get authentication token
+      const { fetchAuthSession } = await import('aws-amplify/auth')
+      const session = await fetchAuthSession()
+      const token = session.tokens?.idToken?.toString()
+      
+      if (!token) {
+        throw new Error('Not authenticated. Please log in again.')
+      }
+
       // Check backend health
       const healthy = await fetch(`${backend}/healthz`, { method: 'GET' }).then(r => r.ok).catch(() => false)
       if (!healthy) {
@@ -211,7 +220,10 @@ const creator: StateCreator<AppState> = (set, get) => ({
       
       const uploadResp = await fetch(`${backend}/upload`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           filename: nifti.name,
           contentType: nifti.type || 'application/octet-stream'
@@ -254,7 +266,10 @@ const creator: StateCreator<AppState> = (set, get) => ({
       console.log('[process] Step 3: Starting SageMaker processing...')
       const processResp = await fetch(`${backend}/process/totalseg`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           jobId: jobId,
           device: 'gpu',

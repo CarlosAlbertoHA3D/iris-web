@@ -168,6 +168,8 @@ Resources:
           Properties:
             Path: /upload
             Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
 
   # Lambda Function for processing orchestration
   ProcessFunction:
@@ -203,6 +205,8 @@ Resources:
           Properties:
             Path: /process/totalseg
             Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
 
   # Lambda Function for file download
   DownloadFunction:
