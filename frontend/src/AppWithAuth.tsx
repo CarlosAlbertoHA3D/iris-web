@@ -13,29 +13,42 @@ function AuthenticatedApp() {
   const [view, setView] = useState<View>('dashboard')
   const loadLocalFiles = useAppStore(s => s.loadLocalFiles)
 
-  const handleViewStudy = async (studyUrl: string, jobId: string) => {
+  const handleViewStudy = async (studyUrl: string, jobId: string, filename: string) => {
     try {
-      console.log('[view-study] Loading study from:', studyUrl)
+      console.log('[view-study] Loading study:', { jobId, filename, url: studyUrl })
       
       // Download the file from S3
       const response = await fetch(studyUrl)
       if (!response.ok) {
-        throw new Error('Failed to download study')
+        throw new Error(`Failed to download study: ${response.status} ${response.statusText}`)
       }
       
       const blob = await response.blob()
-      const filename = studyUrl.split('/').pop() || 'study.nii.gz'
-      const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' })
+      console.log('[view-study] Downloaded blob:', { size: blob.size, type: blob.type })
+      
+      // Determine content type based on filename
+      let contentType = blob.type || 'application/octet-stream'
+      if (filename.endsWith('.nii.gz') || filename.endsWith('.nii')) {
+        contentType = 'application/gzip'
+      } else if (filename.endsWith('.dcm') || filename.endsWith('.dicom')) {
+        contentType = 'application/dicom'
+      }
+      
+      // Create File object with correct name and type
+      const file = new File([blob], filename, { type: contentType })
+      console.log('[view-study] Created file:', { name: file.name, size: file.size, type: file.type })
       
       // Load the file into the viewer and set studyId
+      console.log('[view-study] Calling loadLocalFiles...')
       await loadLocalFiles([file])
       useAppStore.setState({ studyId: jobId })
+      console.log('[view-study] File loaded successfully')
       
       // Navigate to viewer
       setView('viewer')
     } catch (error) {
       console.error('[view-study] Error:', error)
-      alert('Failed to load study. Please try again.')
+      alert(`Failed to load study: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 

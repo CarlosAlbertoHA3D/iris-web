@@ -14,7 +14,7 @@ interface Image {
 
 interface DashboardProps {
   onUploadNewStudy: () => void
-  onViewStudy?: (studyUrl: string, jobId: string) => void
+  onViewStudy?: (studyUrl: string, jobId: string, filename: string) => void
 }
 
 export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
@@ -194,7 +194,7 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
                   onClick={(e) => {
                     e.stopPropagation()
                     if (onViewStudy && img.downloadUrl) {
-                      onViewStudy(img.downloadUrl, img.jobId)
+                      onViewStudy(img.downloadUrl, img.jobId, img.filename)
                     } else {
                       setSelectedImage(img)
                     }
