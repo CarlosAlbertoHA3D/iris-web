@@ -278,6 +278,32 @@ Resources:
             Path: /studies/{jobId}
             Method: OPTIONS
 
+  # Lambda Function to update study status after upload
+  UpdateStatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: iris-update-status
+      CodeUri: lambdas/update-status/
+      Handler: handler.lambda_handler
+      Layers:
+        - !Ref DependenciesLayer
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MetadataTable
+      Events:
+        UpdateStatus:
+          Type: Api
+          Properties:
+            Path: /studies/{jobId}/status
+            Method: PATCH
+            Auth:
+              Authorizer: CognitoAuthorizer
+        UpdateStatusOptions:
+          Type: Api
+          Properties:
+            Path: /studies/{jobId}/status
+            Method: OPTIONS
+
   # Lambda Function for health check
   HealthFunction:
     Type: AWS::Serverless::Function

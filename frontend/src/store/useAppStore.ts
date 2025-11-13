@@ -200,6 +200,22 @@ const creator: StateCreator<AppState> = (set, get) => ({
           
           console.log(`[upload] Successfully uploaded: ${u.file.name}`)
           
+          // Update status in backend to 'uploaded'
+          try {
+            await fetch(`${backend}/studies/${uploadData.jobId}/status`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ status: 'uploaded' })
+            })
+            console.log(`[upload] Status updated to 'uploaded' for jobId: ${uploadData.jobId}`)
+          } catch (statusError) {
+            console.error('[upload] Failed to update status:', statusError)
+            // Continue anyway, upload was successful
+          }
+          
           // Mark as done
           set((s) => ({ 
             uploads: s.uploads.map((it) => (it.id === u.id ? { ...it, status: 'done', progress: 100 } : it)),
@@ -332,6 +348,23 @@ const creator: StateCreator<AppState> = (set, get) => ({
         }
 
         console.log('[process] File uploaded to S3 successfully')
+        
+        // Update status to 'uploaded' in backend
+        try {
+          await fetch(`${backend}/studies/${jobId}/status`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ status: 'uploaded' })
+          })
+          console.log(`[process] Status updated to 'uploaded' for jobId: ${jobId}`)
+        } catch (statusError) {
+          console.error('[process] Failed to update status:', statusError)
+          // Continue anyway, upload was successful
+        }
+        
         set((s) => ({ job: { ...s.job, progress: 30 } }))
       } else {
         console.log('[process] Using already uploaded study:', jobId)
