@@ -322,8 +322,6 @@ Resources:
           Properties:
             Path: /jobs/{jobId}/status
             Method: POST
-            Auth:
-              Authorizer: NONE  # Will be called by SageMaker or internal polling
         UpdateJobStatusOptions:
           Type: Api
           Properties:
