@@ -15,10 +15,15 @@ Globals:
 
   Api:
     Cors:
-      AllowOrigin: "'https://iris-oculus.com,http://localhost:5173'"
+      AllowOrigin: "'*'"
       AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
       AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
-      AllowCredentials: true
+    Auth:
+      Authorizers:
+        CognitoAuthorizer:
+          UserPoolArn: !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/us-east-1_uXa0bwQNp'
+          Identity:
+            Header: Authorization
 
 Parameters:
   DomainName:
@@ -55,6 +60,52 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+
+  # Cognito User Pool for authentication
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: iris-oculus-users
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      UserPoolTags:
+        Application: iris-oculus
+
+  # Cognito User Pool Client (for web app)
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: iris-oculus-web
+      UserPoolId: !Ref CognitoUserPool
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      GenerateSecret: false
+      PreventUserExistenceErrors: ENABLED
+      RefreshTokenValidity: 30
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      TokenValidityUnits:
+        RefreshToken: days
+        AccessToken: minutes
+        IdToken: minutes
 
   # DynamoDB Table for metadata
   MetadataTable:
@@ -126,6 +177,9 @@ Resources:
       CodeUri: lambdas/process/
       Handler: handler.lambda_handler
       Timeout: 900
+      Environment:
+        Variables:
+          SAGEMAKER_MANAGER_FUNCTION: !Ref SageMakerManagerFunction
       Layers:
         - !Ref DependenciesLayer
       Policies:
@@ -139,6 +193,10 @@ Resources:
                 - sagemaker:InvokeEndpoint
                 - sagemaker:InvokeEndpointAsync
               Resource: !Sub 'arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:endpoint/iris-totalsegmentator-endpoint'
+            - Effect: Allow
+              Action:
+                - lambda:InvokeFunction
+              Resource: !GetAtt SageMakerManagerFunction.Arn
       Events:
         Process:
           Type: Api
@@ -166,6 +224,29 @@ Resources:
           Properties:
             Path: /files/{jobId}/{filename}
             Method: GET
+
+  # Lambda Function to get user's images (protected with Cognito)
+  MyImagesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: iris-my-images
+      CodeUri: lambdas/my-images/
+      Handler: handler.lambda_handler
+      Layers:
+        - !Ref DependenciesLayer
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref MetadataTable
+        - S3ReadPolicy:
+            BucketName: !Ref DataBucket
+      Events:
+        GetMyImages:
+          Type: Api
+          Properties:
+            Path: /my-images
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
 
   # Lambda Function for health check
   HealthFunction:
@@ -211,6 +292,48 @@ Resources:
   # Note: SageMaker endpoint configuration will be in a separate deployment script
   # because TotalSegmentator requires custom Docker image
 
+  # DynamoDB Table for tracking SageMaker endpoint activity (auto-sleep)
+  SageMakerActivityTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: iris-sagemaker-activity
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: endpoint
+          AttributeType: S
+      KeySchema:
+        - AttributeName: endpoint
+          KeyType: HASH
+
+  # Lambda function for SageMaker endpoint auto-wake/sleep management
+  SageMakerManagerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/sagemaker-manager/
+      Handler: handler.lambda_handler
+      Timeout: 900
+      Environment:
+        Variables:
+          ENDPOINT_NAME: iris-totalsegmentator-endpoint
+          ENDPOINT_CONFIG: iris-totalsegmentator-config-autoscale
+          ACTIVITY_TABLE: !Ref SageMakerActivityTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SageMakerActivityTable
+        - Statement:
+          - Effect: Allow
+            Action:
+              - sagemaker:DescribeEndpoint
+              - sagemaker:CreateEndpoint
+              - sagemaker:DeleteEndpoint
+              - sagemaker:UpdateEndpoint
+            Resource:
+              - !Sub 'arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:endpoint/iris-totalsegmentator-endpoint'
+              - !Sub 'arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:endpoint-config/iris-totalsegmentator-config-autoscale'
+
+  # Note: EventBridge rule for auto-sleep will be configured manually after deployment
+  # due to CloudFormation permission limitations with EventBridge
+
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL
@@ -235,3 +358,27 @@ Outputs:
     Value: !GetAtt SageMakerExecutionRole.Arn
     Export:
       Name: IrisSageMakerRole
+
+  SageMakerManagerFunction:
+    Description: SageMaker Manager Lambda Function (for auto-wake/sleep)
+    Value: !Ref SageMakerManagerFunction
+    Export:
+      Name: IrisSageMakerManagerFunction
+
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref CognitoUserPool
+    Export:
+      Name: IrisUserPoolId
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref CognitoUserPoolClient
+    Export:
+      Name: IrisUserPoolClientId
+
+  UserPoolArn:
+    Description: Cognito User Pool ARN
+    Value: !GetAtt CognitoUserPool.Arn
+    Export:
+      Name: IrisUserPoolArn

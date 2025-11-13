@@ -16,38 +16,42 @@ table = dynamodb.Table(DYNAMODB_TABLE)
 
 def lambda_handler(event, context):
     """
-    Upload NIFTI/DICOM file to S3 and create metadata in DynamoDB
+    Generate presigned URL for S3 upload and create metadata in DynamoDB
     """
     try:
-        # Handle API Gateway event
-        if event.get('isBase64Encoded'):
-            body = base64.b64decode(event['body'])
-        else:
-            body = event['body']
+        # Extract userId from Cognito token if authenticated
+        authorizer = event.get('requestContext', {}).get('authorizer', {})
+        claims = authorizer.get('claims', {})
+        user_id = claims.get('sub', 'anonymous')  # Use Cognito sub (user ID) or 'anonymous'
         
-        # Parse multipart form data (simplified - in production use multipart parser)
-        # For now, assume direct binary upload or JSON with base64
+        # Parse request body
+        body = event.get('body', '{}')
         if isinstance(body, str):
             data = json.loads(body)
-            file_content = base64.b64decode(data.get('file'))
-            filename = data.get('filename', 'input.nii.gz')
-            user_id = data.get('userId', 'anonymous')
         else:
-            file_content = body
-            filename = event.get('queryStringParameters', {}).get('filename', 'input.nii.gz')
-            user_id = event.get('queryStringParameters', {}).get('userId', 'anonymous')
+            data = body
+        
+        filename = data.get('filename', 'input.nii.gz')
+        content_type = data.get('contentType', 'application/octet-stream')
+        
+        print(f"Upload request from user: {user_id}, filename: {filename}")
         
         # Generate job ID
-        job_id = uuid.uuid4().hex[:12]
+        job_id = f"aws-{uuid.uuid4().hex[:12]}"
         timestamp = int(time.time())
         
-        # Upload to S3
+        # S3 key for upload
         s3_key = f"uploads/{job_id}/{filename}"
-        s3.put_object(
-            Bucket=S3_BUCKET,
-            Key=s3_key,
-            Body=file_content,
-            ContentType='application/octet-stream'
+        
+        # Generate presigned URL for direct S3 upload from browser
+        presigned_url = s3.generate_presigned_url(
+            'put_object',
+            Params={
+                'Bucket': S3_BUCKET,
+                'Key': s3_key,
+                'ContentType': content_type
+            },
+            ExpiresIn=3600  # URL expires in 1 hour
         )
         
         # Create metadata in DynamoDB
@@ -55,7 +59,7 @@ def lambda_handler(event, context):
             Item={
                 'jobId': job_id,
                 'userId': user_id,
-                'status': 'uploaded',
+                'status': 'pending',
                 'inputFile': s3_key,
                 'filename': filename,
                 'createdAt': timestamp,
@@ -73,8 +77,9 @@ def lambda_handler(event, context):
             'body': json.dumps({
                 'ok': True,
                 'jobId': job_id,
+                'uploadUrl': presigned_url,
                 's3Key': s3_key,
-                'message': 'File uploaded successfully'
+                'message': 'Presigned URL generated successfully'
             })
         }
         

@@ -15,35 +15,37 @@
     "postinstall": "node scripts/copy-itk-assets.cjs || echo 'skip itk asset copy'"
   },
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "zustand": "^4.5.2",
+    "@aws-amplify/ui-react": "^6.13.1",
     "@radix-ui/react-label": "^2.0.2",
     "@radix-ui/react-slider": "^1.2.1",
     "@radix-ui/react-switch": "^1.1.1",
+    "aws-amplify": "^6.15.8",
     "class-variance-authority": "^0.7.0",
-    "tailwind-merge": "^2.5.2",
     "clsx": "^2.1.1",
+    "itk-vtk-viewer": "^14.51.0",
+    "itk-wasm": "1.0.0-b.196",
     "lucide-react": "^0.441.0",
+    "nifti-reader-js": "^0.8.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.5.2",
     "three": "^0.168.0",
     "three-stdlib": "^2.32.2",
-    "itk-wasm": "1.0.0-b.196",
-    "nifti-reader-js": "^0.8.0",
-    "itk-vtk-viewer": "^14.51.0"
+    "zustand": "^4.5.2"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react-swc": "^3.6.0",
     "autoprefixer": "^10.4.20",
+    "jsdom": "^25.0.1",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
     "typescript": "^5.6.2",
     "vite": "^5.4.8",
-    "vitest": "^2.1.1",
-    "@testing-library/react": "^16.0.1",
-    "@testing-library/user-event": "^14.6.1",
-    "@testing-library/jest-dom": "^6.5.0",
-    "jsdom": "^25.0.1"
+    "vitest": "^2.1.1"
   }
 }
