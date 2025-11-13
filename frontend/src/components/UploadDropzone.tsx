@@ -12,6 +12,8 @@ export default function UploadDropzone() {
   const uploads = useAppStore(s => s.uploads)
   const job = useAppStore(s => s.job)
 
+  const currentImage = useAppStore(s => s.currentImage)
+  
   const onFiles = useCallback((files: FileList | File[]) => {
     const arr = Array.from(files)
     queueFiles(arr)
@@ -19,11 +21,12 @@ export default function UploadDropzone() {
     loadLocalFiles(arr)
   }, [queueFiles, loadLocalFiles])
   
-  // Hide dropzone when uploading or processing (AFTER all hooks)
+  // Hide dropzone when uploading, processing, or image is already loaded (AFTER all hooks)
   const anyUploading = uploads.some((u) => u.status === 'uploading')
   const isProcessing = job.status === 'RUNNING' || job.status === 'PROCESSING'
+  const hasImage = !!currentImage
   
-  if (anyUploading || isProcessing) {
+  if (anyUploading || isProcessing || hasImage) {
     return null
   }
 
