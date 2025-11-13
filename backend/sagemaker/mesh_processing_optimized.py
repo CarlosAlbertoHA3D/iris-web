@@ -143,8 +143,55 @@ def get_color_for_subobject(obj_name_original: str) -> Tuple[int, int, int]:
     return (200, 200, 200)
 
 
-def clean_mesh(mesh: trimesh.Trimesh):
-    """Clean mesh using trimesh functions"""
+def smooth_mesh(mesh: trimesh.Trimesh, iterations: int = 3):
+    """
+    Smooth mesh to remove cubic/blocky appearance from segmentation
+    Uses Laplacian smoothing to make surfaces more natural
+    """
+    try:
+        # Apply Laplacian smoothing
+        for _ in range(iterations):
+            # Get vertex neighbors
+            vertex_neighbors = mesh.vertex_neighbors
+            
+            # For each vertex, move it towards the average position of neighbors
+            new_vertices = np.array(mesh.vertices)
+            for i, neighbors in enumerate(vertex_neighbors):
+                if len(neighbors) > 0:
+                    neighbor_positions = mesh.vertices[neighbors]
+                    average_position = np.mean(neighbor_positions, axis=0)
+                    # Blend with current position (0.5 = 50% smoothing)
+                    new_vertices[i] = 0.5 * mesh.vertices[i] + 0.5 * average_position
+            
+            mesh.vertices = new_vertices
+        
+        # Recalculate normals after smoothing
+        mesh.fix_normals()
+        print(f"[smooth_mesh] Applied {iterations} iterations of smoothing")
+    except Exception as e:
+        print(f"[smooth_mesh] warning: {e}")
+
+
+def decimate_mesh(mesh: trimesh.Trimesh, target_percent: float = 0.5):
+    """
+    Reduce mesh complexity by removing triangles
+    Makes meshes lighter for web viewing
+    """
+    try:
+        target_faces = max(100, int(len(mesh.faces) * target_percent))
+        if len(mesh.faces) > target_faces:
+            # Use trimesh simplification
+            simplified = mesh.simplify_quadric_decimation(target_faces)
+            print(f"[decimate_mesh] Reduced from {len(mesh.faces)} to {len(simplified.faces)} faces")
+            return simplified
+        return mesh
+    except Exception as e:
+        print(f"[decimate_mesh] warning: {e}")
+        return mesh
+
+
+def clean_mesh(mesh: trimesh.Trimesh, smooth: bool = True, decimate: bool = True):
+    """Clean and optimize mesh using trimesh functions"""
     try:
         # Remove degenerate faces
         mesh.remove_degenerate_faces()
@@ -154,14 +201,33 @@ def clean_mesh(mesh: trimesh.Trimesh):
         mesh.merge_vertices()
         # Remove unreferenced vertices
         mesh.remove_unreferenced_vertices()
+        
+        # Apply smoothing to remove blocky appearance
+        if smooth:
+            smooth_mesh(mesh, iterations=3)
+        
+        # Optionally reduce polygon count for web performance
+        if decimate and len(mesh.faces) > 5000:
+            mesh = decimate_mesh(mesh, target_percent=0.6)
+        
         # Fix normals
         mesh.fix_normals()
+        
+        return mesh
     except Exception as e:
         print(f"[clean_mesh] warning: {e}")
+        return mesh
 
 
-def mask_to_mesh(nii_path: Path, level: float = 0.5) -> Optional[trimesh.Trimesh]:
-    """Convert NIFTI mask to trimesh mesh using marching cubes"""
+def mask_to_mesh(nii_path: Path, level: float = 0.5, smooth: bool = True) -> Optional[trimesh.Trimesh]:
+    """
+    Convert NIFTI mask to trimesh mesh using marching cubes
+    
+    Args:
+        nii_path: Path to NIFTI file
+        level: Isosurface level for marching cubes
+        smooth: Apply smoothing to remove blocky appearance
+    """
     try:
         img = nib.load(str(nii_path))
         data = img.get_fdata()
@@ -174,7 +240,10 @@ def mask_to_mesh(nii_path: Path, level: float = 0.5) -> Optional[trimesh.Trimesh
         
         # Create trimesh object
         mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
-        clean_mesh(mesh)
+        
+        # Clean and optimize mesh (with smoothing and decimation)
+        mesh = clean_mesh(mesh, smooth=smooth, decimate=True)
+        
         return mesh
     except Exception as e:
         print(f"[mask_to_mesh] error for {nii_path}: {e}")
