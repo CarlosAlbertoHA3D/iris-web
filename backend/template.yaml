@@ -226,17 +226,18 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
-  # Batch Compute Environment (CPU On-Demand - temporary while GPU quota pending)
-  BatchCPUComputeEnvironment:
+  # Batch Compute Environment (CPU Spot - using Spot to avoid On-Demand quota limits)
+  BatchCPUSpotComputeEnvironment:
     Type: AWS::Batch::ComputeEnvironment
     Properties:
-      ComputeEnvironmentName: iris-cpu-ondemand-compute-v2
+      ComputeEnvironmentName: iris-cpu-spot-compute-v3
       Type: MANAGED
       State: ENABLED
       ServiceRole: !GetAtt BatchServiceRole.Arn
       ComputeResources:
-        Type: EC2
-        AllocationStrategy: BEST_FIT_PROGRESSIVE
+        Type: SPOT
+        AllocationStrategy: SPOT_CAPACITY_OPTIMIZED
+        BidPercentage: 100
         MinvCpus: 0
         MaxvCpus: 16
         DesiredvCpus: 0
@@ -327,7 +328,7 @@ Resources:
       Priority: 1
       ComputeEnvironmentOrder:
         - Order: 1
-          ComputeEnvironment: !Ref BatchCPUComputeEnvironment
+          ComputeEnvironment: !Ref BatchCPUSpotComputeEnvironment
 
   # Batch Job Definition
   BatchJobDefinition:
