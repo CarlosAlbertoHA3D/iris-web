@@ -8,20 +8,22 @@ export default function UploadsList() {
   const clearUploads = useAppStore((s) => s.clearUploads)
   const startUploads = useAppStore((s) => s.startUploads)
   const job = useAppStore((s) => s.job)
+  const studyId = useAppStore((s) => s.studyId)
 
   if (!uploads.length) return null
 
   const anyQueued = uploads.some((u) => u.status === 'queued')
   const anyUploading = uploads.some((u) => u.status === 'uploading')
   const allDone = uploads.every((u) => u.status === 'done')
-  const isProcessing = job.status === 'RUNNING' || job.status === 'PROCESSING'
+  const isProcessing = job.status === 'processing' || job.status === 'queued'
+  const alreadyUploaded = !!studyId
 
   return (
     <div className="border rounded-md p-3 bg-card">
       <div className="flex items-center justify-between mb-2">
         <div className="text-sm font-medium">Uploads</div>
         <div className="flex items-center gap-2">
-          {anyQueued && !anyUploading && !isProcessing && (
+          {anyQueued && !anyUploading && !isProcessing && !alreadyUploaded && (
             <Button size="sm" onClick={() => startUploads()}>Start Upload</Button>
           )}
           <Button size="sm" variant="outline" onClick={() => clearUploads()} disabled={!uploads.length || !allDone}>
