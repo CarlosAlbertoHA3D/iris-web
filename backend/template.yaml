@@ -418,9 +418,11 @@ Resources:
               Action:
                 - batch:SubmitJob
                 - batch:DescribeJobs
+                - batch:TagResource
               Resource:
                 - !Ref BatchJobQueue
                 - !Ref BatchJobDefinition
+                - !Sub 'arn:aws:batch:${AWS::Region}:${AWS::AccountId}:job/*'
       Events:
         Process:
           Type: Api
