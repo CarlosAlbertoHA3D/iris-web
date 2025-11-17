@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Authenticator, useAuthenticator } from '@aws-amplify/ui-react'
 import { useAppStore } from './store/useAppStore'
 import { LandingPage } from './components/Landing/LandingPage'
@@ -12,6 +12,27 @@ type View = 'dashboard' | 'viewer'
 function AuthenticatedApp() {
   const [view, setView] = useState<View>('dashboard')
   const loadLocalFiles = useAppStore(s => s.loadLocalFiles)
+
+  // Clear store on mount (fresh login)
+  useEffect(() => {
+    console.log('[AuthenticatedApp] Clearing store on login')
+    useAppStore.setState({ 
+      studyId: undefined,
+      currentImage: undefined,
+      lastLocalFiles: [],
+      job: { id: undefined, status: 'idle', progress: 0, message: 'Ready to start processing.' }
+    })
+  }, [])
+
+  const handleBackToDashboard = () => {
+    // Clear viewer state when going back to dashboard
+    useAppStore.setState({ 
+      studyId: undefined,
+      currentImage: undefined,
+      job: { id: undefined, status: 'idle', progress: 0, message: 'Ready to start processing.' }
+    })
+    setView('dashboard')
+  }
 
   const handleViewStudy = async (studyUrl: string, jobId: string, filename: string) => {
     try {
@@ -62,7 +83,7 @@ function AuthenticatedApp() {
       ) : (
         <App 
           isIntegrated={true} 
-          onBackToDashboard={() => setView('dashboard')} 
+          onBackToDashboard={handleBackToDashboard} 
         />
       )}
     </>

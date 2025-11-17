@@ -226,23 +226,22 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
-  # Batch Compute Environment (Spot instances for cost optimization)
-  BatchComputeEnvironment:
+  # Batch Compute Environment (CPU On-Demand - temporary while GPU quota pending)
+  BatchCPUComputeEnvironment:
     Type: AWS::Batch::ComputeEnvironment
     Properties:
-      ComputeEnvironmentName: iris-gpu-spot-compute
+      ComputeEnvironmentName: iris-cpu-ondemand-compute-v2
       Type: MANAGED
       State: ENABLED
       ServiceRole: !GetAtt BatchServiceRole.Arn
       ComputeResources:
-        Type: SPOT
-        AllocationStrategy: SPOT_CAPACITY_OPTIMIZED
-        BidPercentage: 100
+        Type: EC2
+        AllocationStrategy: BEST_FIT_PROGRESSIVE
         MinvCpus: 0
         MaxvCpus: 16
         DesiredvCpus: 0
         InstanceTypes:
-          - g4dn.xlarge  # GPU instance with 1 NVIDIA T4 GPU
+          - c5.2xlarge  # 8 vCPUs, 16 GB RAM - optimized for compute
         Subnets:
           - !Ref BatchSubnet
         SecurityGroupIds:
@@ -251,6 +250,8 @@ Resources:
         Tags:
           Name: iris-batch-instance
           Application: iris-oculus
+        Ec2Configuration:
+          - ImageType: ECS_AL2
 
   # VPC for Batch (simple setup)
   BatchVPC:
@@ -326,7 +327,7 @@ Resources:
       Priority: 1
       ComputeEnvironmentOrder:
         - Order: 1
-          ComputeEnvironment: !Ref BatchComputeEnvironment
+          ComputeEnvironment: !Ref BatchCPUComputeEnvironment
 
   # Batch Job Definition
   BatchJobDefinition:
@@ -338,20 +339,17 @@ Resources:
         - EC2
       ContainerProperties:
         Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${BatchECRRepository}:latest'
-        Vcpus: 4
+        Vcpus: 8
         Memory: 16384
         ExecutionRoleArn: !GetAtt BatchTaskExecutionRole.Arn
         JobRoleArn: !GetAtt BatchInstanceRole.Arn
-        ResourceRequirements:
-          - Type: GPU
-            Value: '1'
         Environment:
           - Name: S3_BUCKET
             Value: !Ref DataBucket
           - Name: DYNAMODB_TABLE
             Value: !Ref MetadataTable
           - Name: DEVICE
-            Value: gpu
+            Value: cpu
           - Name: FAST
             Value: 'true'
           - Name: REDUCTION_PERCENT

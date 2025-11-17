@@ -70,6 +70,9 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
       setLoading(true)
       const session = await fetchAuthSession()
       const token = session.tokens?.idToken?.toString()
+      const userId = session.tokens?.idToken?.payload?.sub
+
+      console.log('[Dashboard] Loading images for user:', userId)
 
       const response = await fetch(
         `${import.meta.env.VITE_BACKEND_URL}/my-images`,
@@ -81,14 +84,25 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
       )
 
       if (!response.ok) {
-        throw new Error(`Error: ${response.status}`)
+        const errorText = await response.text()
+        console.error('[Dashboard] Error response:', errorText)
+        throw new Error(`Error: ${response.status} - ${errorText}`)
       }
 
       const data = await response.json()
-      console.log('Images loaded:', data)
+      console.log('[Dashboard] Images loaded:', {
+        count: data.count,
+        images: data.images?.map((img: any) => ({
+          jobId: img.jobId,
+          filename: img.filename,
+          status: img.status,
+          createdAt: img.createdAt
+        }))
+      })
       setImages(data.images || [])
     } catch (error) {
-      console.error('Error loading images:', error)
+      console.error('[Dashboard] Error loading images:', error)
+      alert(`Failed to load studies: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
