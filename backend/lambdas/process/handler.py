@@ -59,7 +59,7 @@ def lambda_handler(event, context):
             body = event.get('body', {})
         
         job_id = body.get('jobId')
-        device = body.get('device', 'gpu')
+        device = body.get('device', 'cpu')  # Using CPU while GPU quota is pending
         fast = body.get('fast', True)
         reduction_percent = body.get('reduction_percent', 90)
         
@@ -122,8 +122,8 @@ def lambda_handler(event, context):
                 'jobId': job_id,
                 'batchJobId': batch_job_id,
                 'status': 'queued',
-                'message': 'Job submitted to GPU processing queue (Spot instance, 3-5 min startup + 10-15 min processing)',
-                'estimatedTime': '13-20 minutes total'
+                'message': 'Job submitted to CPU processing queue (On-Demand instance, 2-3 min startup + 45-60 min processing)',
+                'estimatedTime': '47-63 minutes total'
             })
         }
         
