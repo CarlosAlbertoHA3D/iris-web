@@ -66,8 +66,9 @@ COPY inference.py /opt/ml/code/inference.py
 COPY mesh_processing.py /opt/ml/code/mesh_processing.py
 COPY serve /opt/ml/code/serve
 
-# Make serve script executable
-RUN chmod +x /opt/ml/code/serve
+# Make serve script executable and ensure it is on PATH for SageMaker's default command
+RUN chmod +x /opt/ml/code/serve \
+    && ln -sf /opt/ml/code/serve /usr/local/bin/serve
 
 # Set working directory
 WORKDIR /opt/ml/code

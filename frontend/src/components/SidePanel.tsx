@@ -19,7 +19,7 @@ export default function SidePanel() {
 
   // Only show "Process with AI" if there are files loaded
   const hasFiles = (lastLocalFiles && lastLocalFiles.length > 0) || (uploads && uploads.length > 0)
-  const isProcessing = job.status === 'RUNNING' || job.status === 'PROCESSING'
+  const isProcessing = job.status === 'queued' || job.status === 'processing'
 
   return (
     <div className="space-y-6">
@@ -36,7 +36,12 @@ export default function SidePanel() {
           <div className="h-2 w-full rounded bg-muted overflow-hidden">
             <div className="h-full bg-primary transition-all" style={{ width: `${job.progress ?? 0}%` }} />
           </div>
-          <div className="text-xs mt-1">{job.status ?? '—'} {job.progress ?? 0}%</div>
+          <div className="text-xs mt-1 capitalize">{job.status ?? '—'} {job.progress ?? 0}%</div>
+          {job.message && (
+            <div className="text-xs text-muted-foreground mt-1 leading-snug">
+              {job.message}
+            </div>
+          )}
         </div>
       </section>
 
