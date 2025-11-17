@@ -68,7 +68,9 @@ interface AppState {
   setPan: (x: number, y: number) => void
   toggleCrosshair: () => void
   toggleTheme: () => void
+  uploadStudy: () => Promise<string | undefined>
   startProcessing: () => Promise<void>
+  restoreJobState: () => Promise<void>
   startJobMonitor: (jobId: string) => Promise<void>
   stopJobMonitor: () => void
   toggleFullscreen: (pane: Pane) => void
@@ -207,7 +209,7 @@ const creator: StateCreator<AppState> = (set, get) => ({
       console.warn('[store] loadLocalFiles error:', e)
     }
   },
-  startProcessing: async () => {
+  uploadStudy: async () => {
     const backend = (import.meta as any).env?.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
 
     try {
@@ -221,81 +223,127 @@ const creator: StateCreator<AppState> = (set, get) => ({
       }
 
       const { studyId, lastLocalFiles } = get()
-      let jobId = studyId
+      
+      // If already uploaded, don't upload again
+      if (studyId) {
+        console.log('[upload] Study already uploaded:', studyId)
+        set((s) => ({ job: { ...s.job, status: 'idle', progress: 0, message: 'Study already uploaded' } }))
+        return studyId
+      }
 
-      // If no studyId, we need to upload first
-      if (!jobId) {
-        console.log('[process] No study uploaded, creating new upload...')
-        
-        const nifti = (lastLocalFiles || []).find(f => /\.nii(\.gz)?$/i.test(f.name)) || lastLocalFiles?.[0]
-        if (!nifti) throw new Error('No file available to process. Please upload a file first.')
+      console.log('[upload] Creating new upload...')
+      
+      const nifti = (lastLocalFiles || []).find(f => /\.nii(\.gz)?$/i.test(f.name)) || lastLocalFiles?.[0]
+      if (!nifti) throw new Error('No file available to process. Please upload a file first.')
 
-        const uploadResp = await fetch(`${backend}/upload`, {
-          method: 'POST',
-          headers: { 
+      let jobId: string
+
+      const uploadResp = await fetch(`${backend}/upload`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          filename: nifti.name,
+          contentType: nifti.type || 'application/octet-stream'
+        })
+      })
+      
+      if (!uploadResp.ok) {
+        const error = await uploadResp.text()
+        throw new Error(`Upload request failed: ${error}`)
+      }
+      
+      const uploadData = await uploadResp.json()
+      console.log('[upload] Upload response:', uploadData)
+      
+      if (!uploadData.ok || !uploadData.uploadUrl || !uploadData.jobId) {
+        throw new Error('Invalid upload response from server')
+      }
+
+      jobId = uploadData.jobId
+      set((s) => ({
+        job: { id: jobId, status: 'uploading', progress: 35, message: statusMessages.uploading },
+        studyId: jobId,
+      }))
+
+      const s3Upload = await fetch(uploadData.uploadUrl, {
+        method: 'PUT',
+        body: nifti,
+        headers: {
+          'Content-Type': nifti.type || 'application/octet-stream'
+        }
+      })
+
+      if (!s3Upload.ok) {
+        throw new Error(`S3 upload failed: ${s3Upload.status}`)
+      }
+
+      console.log('[upload] File uploaded to S3 successfully')
+      
+      try {
+        await fetch(`${backend}/studies/${jobId}/status`, {
+          method: 'PATCH',
+          headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({
-            filename: nifti.name,
-            contentType: nifti.type || 'application/octet-stream'
-          })
+          body: JSON.stringify({ status: 'uploaded' })
         })
-        
-        if (!uploadResp.ok) {
-          const error = await uploadResp.text()
-          throw new Error(`Upload request failed: ${error}`)
-        }
-        
-        const uploadData = await uploadResp.json()
-        console.log('[process] Upload response:', uploadData)
-        
-        if (!uploadData.ok || !uploadData.uploadUrl || !uploadData.jobId) {
-          throw new Error('Invalid upload response from server')
-        }
-
-        jobId = uploadData.jobId
-        set((s) => ({
-          job: { id: jobId, status: 'uploading', progress: 35, message: statusMessages.uploading },
-          studyId: jobId,
-        }))
-
-        const s3Upload = await fetch(uploadData.uploadUrl, {
-          method: 'PUT',
-          body: nifti,
-          headers: {
-            'Content-Type': nifti.type || 'application/octet-stream'
-          }
-        })
-
-        if (!s3Upload.ok) {
-          throw new Error(`S3 upload failed: ${s3Upload.status}`)
-        }
-
-        console.log('[process] File uploaded to S3 successfully')
-        
-        try {
-          await fetch(`${backend}/studies/${jobId}/status`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ status: 'uploaded' })
-          })
-          console.log(`[process] Status updated to 'uploaded' for jobId: ${jobId}`)
-        } catch (statusError) {
-          console.error('[process] Failed to update status:', statusError)
-          // Continue anyway, upload was successful
-        }
-        
-        set((s) => ({ job: { ...s.job, progress: 50, message: 'Upload complete. Preparing processing request...' } }))
-      } else {
-        console.log('[process] Using already uploaded study:', jobId)
-        set((s) => ({
-          job: { id: jobId, status: 'uploading', progress: 30, message: 'Reusing existing upload...' },
-        }))
+        console.log(`[upload] Status updated to 'uploaded' for jobId: ${jobId}`)
+      } catch (statusError) {
+        console.error('[upload] Failed to update status:', statusError)
+        // Continue anyway, upload was successful
       }
+      
+      set((s) => ({
+        job: { id: jobId, status: 'idle', progress: 0, message: 'Upload complete' },
+        studyId: jobId
+      }))
+
+      console.log('[upload] Upload complete. JobId:', jobId)
+      return jobId
+
+    } catch (e: any) {
+      console.warn('[upload] error:', e)
+      set((s) => ({
+        job: {
+          ...s.job,
+          status: 'failed',
+          progress: statusProgress.failed,
+          error: e?.message || 'Upload failed',
+          message: e?.message || statusMessages.failed,
+        },
+      }))
+      throw e
+    }
+  },
+  startProcessing: async () => {
+    const backend = (import.meta as any).env?.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
+
+    try {
+      const { fetchAuthSession } = await import('aws-amplify/auth')
+      const session = await fetchAuthSession()
+      const token = session.tokens?.idToken?.toString()
+      
+      if (!token) {
+        throw new Error('Not authenticated. Please log in again.')
+      }
+
+      let { studyId } = get()
+
+      // If no studyId, upload first
+      if (!studyId) {
+        console.log('[process] No study uploaded, uploading first...')
+        studyId = await get().uploadStudy()
+        if (!studyId) {
+          throw new Error('Upload failed, cannot process')
+        }
+      }
+
+      console.log('[process] Starting processing for study:', studyId)
+      set((s) => ({ job: { ...s.job, status: 'queued', progress: 50, message: 'Submitting job to GPU queue...' } }))
 
       // Now trigger the processing
       const processResp = await fetch(`${backend}/process/totalseg`, {
@@ -305,7 +353,7 @@ const creator: StateCreator<AppState> = (set, get) => ({
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          jobId: jobId,
+          jobId: studyId,
           device: 'gpu',
           fast: true,
           reduction_percent: 90
@@ -322,24 +370,20 @@ const creator: StateCreator<AppState> = (set, get) => ({
 
       set((s) => ({
         job: {
-          id: jobId,
+          id: studyId,
           status: 'queued',
           progress: statusProgress.queued,
           message: statusMessages.queued,
           error: undefined,
         },
-        studyId: jobId,
+        studyId: studyId,
       }))
 
-      console.log('[process] Job submitted. JobId:', jobId)
+      console.log('[process] Job submitted. JobId:', studyId)
       console.log('[process] This may take 15-25 minutes on first run (endpoint creation + processing)')
       console.log('[process] Subsequent runs will be faster (10-15 minutes)')
 
-      if (!jobId) {
-        throw new Error('Job ID missing after process start')
-      }
-
-      await get().startJobMonitor(jobId)
+      await get().startJobMonitor(studyId)
 
     } catch (e: any) {
       console.warn('[process] error:', e)
@@ -355,8 +399,51 @@ const creator: StateCreator<AppState> = (set, get) => ({
     }
   },
   startUploads: async () => {
-    // Legacy function for backwards compatibility - just calls startProcessing
-    await get().startProcessing()
+    // Upload only, don't process
+    await get().uploadStudy()
+  },
+  restoreJobState: async () => {
+    const backend = (import.meta as any).env?.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
+    const { studyId } = get()
+    
+    if (!studyId) return
+
+    try {
+      const { fetchAuthSession } = await import('aws-amplify/auth')
+      const session = await fetchAuthSession()
+      const token = session.tokens?.idToken?.toString()
+      
+      if (!token) return
+
+      console.log('[restore] Checking status for study:', studyId)
+      const res = await fetch(`${backend}/jobs/${studyId}`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (!res.ok) return
+
+      const data = await res.json()
+      const jobPayload = data?.job || {}
+      const status = normalizeStatus(jobPayload.status)
+
+      // If job is active, restore state and start monitoring
+      if (status === 'queued' || status === 'processing') {
+        console.log('[restore] Restoring active job state:', status)
+        set((s) => ({
+          job: {
+            id: studyId,
+            status,
+            progress: statusProgress[status],
+            message: statusMessages[status],
+          },
+          studyId,
+        }))
+        await get().startJobMonitor(studyId)
+      }
+    } catch (e) {
+      console.warn('[restore] Failed to restore job state:', e)
+    }
   },
   startJobMonitor: async (jobId: string) => {
     const backend = (import.meta as any).env?.VITE_BACKEND_URL || 'http://127.0.0.1:8000'

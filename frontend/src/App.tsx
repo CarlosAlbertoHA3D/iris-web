@@ -22,10 +22,16 @@ export default function App({ isIntegrated = false, onBackToDashboard }: AppProp
   const job = useAppStore(s => s.job)
   const fullscreenPane = useAppStore(s => s.layout.fullscreenPane)
   const toggleFullscreen = useAppStore(s => s.toggleFullscreen)
+  const restoreJobState = useAppStore(s => s.restoreJobState)
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
   }, [theme])
+
+  // Restore job state on mount (if user reloads page with active job)
+  useEffect(() => {
+    restoreJobState()
+  }, [])
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#000000' }}>
