@@ -122,8 +122,8 @@ def lambda_handler(event, context):
                 'jobId': job_id,
                 'batchJobId': batch_job_id,
                 'status': 'queued',
-                'message': 'Job submitted to CPU processing queue (Spot instance, 3-5 min startup + 45-60 min processing)',
-                'estimatedTime': '47-63 minutes total'
+                'message': 'Job submitted to CPU processing queue (Spot c5.large, 3-5 min startup + 90-120 min processing)',
+                'estimatedTime': '93-125 minutes total'
             })
         }
         

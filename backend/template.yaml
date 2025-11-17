@@ -226,11 +226,11 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
-  # Batch Compute Environment (CPU Spot - using Spot to avoid On-Demand quota limits)
-  BatchCPUSpotComputeEnvironment:
+  # Batch Compute Environment (CPU Spot Small - c5.large for minimal quota)
+  BatchCPUSpotSmallComputeEnvironment:
     Type: AWS::Batch::ComputeEnvironment
     Properties:
-      ComputeEnvironmentName: iris-cpu-spot-compute-v3
+      ComputeEnvironmentName: iris-cpu-spot-small-v4
       Type: MANAGED
       State: ENABLED
       ServiceRole: !GetAtt BatchServiceRole.Arn
@@ -242,7 +242,7 @@ Resources:
         MaxvCpus: 16
         DesiredvCpus: 0
         InstanceTypes:
-          - c5.2xlarge  # 8 vCPUs, 16 GB RAM - optimized for compute
+          - c5.large  # 2 vCPUs, 4 GB RAM - minimal quota requirement
         Subnets:
           - !Ref BatchSubnet
         SecurityGroupIds:
@@ -328,7 +328,7 @@ Resources:
       Priority: 1
       ComputeEnvironmentOrder:
         - Order: 1
-          ComputeEnvironment: !Ref BatchCPUSpotComputeEnvironment
+          ComputeEnvironment: !Ref BatchCPUSpotSmallComputeEnvironment
 
   # Batch Job Definition
   BatchJobDefinition:
@@ -340,8 +340,8 @@ Resources:
         - EC2
       ContainerProperties:
         Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${BatchECRRepository}:latest'
-        Vcpus: 8
-        Memory: 16384
+        Vcpus: 2
+        Memory: 4096
         ExecutionRoleArn: !GetAtt BatchTaskExecutionRole.Arn
         JobRoleArn: !GetAtt BatchInstanceRole.Arn
         Environment:

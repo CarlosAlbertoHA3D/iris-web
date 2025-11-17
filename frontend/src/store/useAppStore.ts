@@ -94,7 +94,7 @@ const statusMessages: Record<JobStatus, string> = {
   idle: 'Ready to start processing.',
   uploading: 'Uploading study to secure storage...',
   queued: 'Starting CPU Spot instance (3-5 min)...',
-  processing: 'AI is processing your study on CPU (typically 45-60 min).',
+  processing: 'AI is processing your study on small CPU (typically 90-120 min).',
   completed: 'Processing finished. 3D models are ready to view.',
   failed: 'Processing failed. Please review the error and try again.',
 }
@@ -380,8 +380,8 @@ const creator: StateCreator<AppState> = (set, get) => ({
       }))
 
       console.log('[process] Job submitted. JobId:', studyId)
-      console.log('[process] This may take 48-65 minutes (Spot instance startup + CPU processing)')
-      console.log('[process] Using CPU Spot instances to avoid quota limits')
+      console.log('[process] This may take 93-125 minutes (Spot c5.large startup + CPU processing)')
+      console.log('[process] Using small CPU Spot instance (c5.large) due to quota limits')
 
       await get().startJobMonitor(studyId)
 
