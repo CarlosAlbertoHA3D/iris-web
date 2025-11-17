@@ -11,7 +11,8 @@ Globals:
       Variables:
         S3_BUCKET: !Ref DataBucket
         DYNAMODB_TABLE: !Ref MetadataTable
-        SAGEMAKER_ENDPOINT_NAME: iris-totalsegmentator-endpoint
+        BATCH_JOB_QUEUE: !Ref BatchJobQueue
+        BATCH_JOB_DEFINITION: !Ref BatchJobDefinition
 
   Api:
     Cors:
@@ -136,6 +137,226 @@ Resources:
         AttributeName: ttl
         Enabled: true
 
+  # ECR Repository for Batch Docker image
+  BatchECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: iris-totalsegmentator-batch
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [{
+              "rulePriority": 1,
+              "description": "Keep only last 3 images",
+              "selection": {
+                "tagStatus": "any",
+                "countType": "imageCountMoreThan",
+                "countNumber": 3
+              },
+              "action": { "type": "expire" }
+            }]
+          }
+
+  # IAM Role for Batch compute environment
+  BatchInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+      Policies:
+        - PolicyName: BatchS3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub '${DataBucket.Arn}/*'
+        - PolicyName: BatchDynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:UpdateItem
+                  - dynamodb:GetItem
+                Resource: !GetAtt MetadataTable.Arn
+
+  BatchInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref BatchInstanceRole
+
+  # IAM Role for Batch service
+  BatchServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: batch.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
+
+  # IAM Role for Batch ECS task execution
+  BatchTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  # Batch Compute Environment (Spot instances for cost optimization)
+  BatchComputeEnvironment:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName: iris-gpu-spot-compute
+      Type: MANAGED
+      State: ENABLED
+      ServiceRole: !GetAtt BatchServiceRole.Arn
+      ComputeResources:
+        Type: SPOT
+        AllocationStrategy: SPOT_CAPACITY_OPTIMIZED
+        BidPercentage: 100
+        MinvCpus: 0
+        MaxvCpus: 16
+        DesiredvCpus: 0
+        InstanceTypes:
+          - g4dn.xlarge  # GPU instance with 1 NVIDIA T4 GPU
+        Subnets:
+          - !Ref BatchSubnet
+        SecurityGroupIds:
+          - !Ref BatchSecurityGroup
+        InstanceRole: !GetAtt BatchInstanceProfile.Arn
+        Tags:
+          Name: iris-batch-instance
+          Application: iris-oculus
+
+  # VPC for Batch (simple setup)
+  BatchVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: iris-batch-vpc
+
+  BatchSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref BatchVPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: iris-batch-subnet
+
+  BatchInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: iris-batch-igw
+
+  BatchVPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref BatchVPC
+      InternetGatewayId: !Ref BatchInternetGateway
+
+  BatchRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref BatchVPC
+      Tags:
+        - Key: Name
+          Value: iris-batch-rt
+
+  BatchRoute:
+    Type: AWS::EC2::Route
+    DependsOn: BatchVPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref BatchRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref BatchInternetGateway
+
+  BatchSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref BatchSubnet
+      RouteTableId: !Ref BatchRouteTable
+
+  BatchSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Batch compute environment
+      VpcId: !Ref BatchVPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  # Batch Job Queue
+  BatchJobQueue:
+    Type: AWS::Batch::JobQueue
+    Properties:
+      JobQueueName: iris-processing-queue
+      State: ENABLED
+      Priority: 1
+      ComputeEnvironmentOrder:
+        - Order: 1
+          ComputeEnvironment: !Ref BatchComputeEnvironment
+
+  # Batch Job Definition
+  BatchJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      JobDefinitionName: iris-totalsegmentator-job
+      Type: container
+      PlatformCapabilities:
+        - EC2
+      ContainerProperties:
+        Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${BatchECRRepository}:latest'
+        Vcpus: 4
+        Memory: 16384
+        ExecutionRoleArn: !GetAtt BatchTaskExecutionRole.Arn
+        JobRoleArn: !GetAtt BatchInstanceRole.Arn
+        ResourceRequirements:
+          - Type: GPU
+            Value: '1'
+        Environment:
+          - Name: S3_BUCKET
+            Value: !Ref DataBucket
+          - Name: DYNAMODB_TABLE
+            Value: !Ref MetadataTable
+          - Name: DEVICE
+            Value: gpu
+          - Name: FAST
+            Value: 'true'
+          - Name: REDUCTION_PERCENT
+            Value: '90'
+
   # Lambda Layer for dependencies
   DependenciesLayer:
     Type: AWS::Serverless::LayerVersion
@@ -178,10 +399,13 @@ Resources:
       FunctionName: iris-process
       CodeUri: lambdas/process/
       Handler: handler.lambda_handler
-      Timeout: 900
+      Timeout: 30
       Environment:
         Variables:
-          SAGEMAKER_MANAGER_FUNCTION: !Ref SageMakerManagerFunction
+          S3_BUCKET: !Ref DataBucket
+          DYNAMODB_TABLE: !Ref MetadataTable
+          BATCH_JOB_QUEUE: !Ref BatchJobQueue
+          BATCH_JOB_DEFINITION: !Ref BatchJobDefinition
       Layers:
         - !Ref DependenciesLayer
       Policies:
@@ -192,13 +416,11 @@ Resources:
         - Statement:
             - Effect: Allow
               Action:
-                - sagemaker:InvokeEndpoint
-                - sagemaker:InvokeEndpointAsync
-              Resource: !Sub 'arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:endpoint/iris-totalsegmentator-endpoint'
-            - Effect: Allow
-              Action:
-                - lambda:InvokeFunction
-              Resource: !GetAtt SageMakerManagerFunction.Arn
+                - batch:SubmitJob
+                - batch:DescribeJobs
+              Resource:
+                - !Ref BatchJobQueue
+                - !Ref BatchJobDefinition
       Events:
         Process:
           Type: Api
@@ -304,29 +526,44 @@ Resources:
             Path: /studies/{jobId}/status
             Method: OPTIONS
 
-  # Lambda Function to update job status and artifacts after SageMaker processing
-  UpdateJobStatusFunction:
+  # Lambda Function to get job status
+  GetJobStatusFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: iris-update-job-status
-      CodeUri: lambdas/update-job-status/
+      FunctionName: iris-get-job-status
+      CodeUri: lambdas/get-job-status/
       Handler: handler.lambda_handler
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref MetadataTable
+          S3_BUCKET: !Ref DataBucket
       Layers:
         - !Ref DependenciesLayer
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref MetadataTable
+        - S3ReadPolicy:
+            BucketName: !Ref DataBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - batch:DescribeJobs
+              Resource: '*'
       Events:
-        UpdateJobStatus:
+        GetJobStatus:
           Type: Api
           Properties:
-            Path: /jobs/{jobId}/status
-            Method: POST
-        UpdateJobStatusOptions:
+            Path: /jobs/{jobId}
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+        GetJobStatusOptions:
           Type: Api
           Properties:
-            Path: /jobs/{jobId}/status
+            Path: /jobs/{jobId}
             Method: OPTIONS
+
+  # Note: UpdateJobStatusFunction removed - Batch container updates DynamoDB directly
 
   # Lambda Function for health check
   HealthFunction:
@@ -342,77 +579,7 @@ Resources:
             Path: /healthz
             Method: GET
 
-  # SageMaker Execution Role
-  SageMakerExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: iris-sagemaker-role
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: sagemaker.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
-      Policies:
-        - PolicyName: S3Access
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:DeleteObject
-                Resource: !Sub '${DataBucket.Arn}/*'
-
-  # SageMaker Model (to be created manually or via separate script)
-  # Note: SageMaker endpoint configuration will be in a separate deployment script
-  # because TotalSegmentator requires custom Docker image
-
-  # DynamoDB Table for tracking SageMaker endpoint activity (auto-sleep)
-  SageMakerActivityTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: iris-sagemaker-activity
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: endpoint
-          AttributeType: S
-      KeySchema:
-        - AttributeName: endpoint
-          KeyType: HASH
-
-  # Lambda function for SageMaker endpoint auto-wake/sleep management
-  SageMakerManagerFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: lambdas/sagemaker-manager/
-      Handler: handler.lambda_handler
-      Timeout: 900
-      Environment:
-        Variables:
-          ENDPOINT_NAME: iris-totalsegmentator-endpoint
-          ENDPOINT_CONFIG: iris-totalsegmentator-config-autoscale
-          ACTIVITY_TABLE: !Ref SageMakerActivityTable
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref SageMakerActivityTable
-        - Statement:
-          - Effect: Allow
-            Action:
-              - sagemaker:DescribeEndpoint
-              - sagemaker:CreateEndpoint
-              - sagemaker:DeleteEndpoint
-              - sagemaker:UpdateEndpoint
-            Resource:
-              - !Sub 'arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:endpoint/iris-totalsegmentator-endpoint'
-              - !Sub 'arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:endpoint-config/iris-totalsegmentator-config-autoscale'
-
-  # Note: EventBridge rule for auto-sleep will be configured manually after deployment
-  # due to CloudFormation permission limitations with EventBridge
+  # Note: SageMaker resources removed - now using AWS Batch with Spot instances for cost optimization
 
 Outputs:
   ApiEndpoint:
@@ -433,17 +600,23 @@ Outputs:
     Export:
       Name: IrisMetadataTable
 
-  SageMakerRoleArn:
-    Description: SageMaker Execution Role ARN
-    Value: !GetAtt SageMakerExecutionRole.Arn
+  BatchJobQueue:
+    Description: AWS Batch Job Queue
+    Value: !Ref BatchJobQueue
     Export:
-      Name: IrisSageMakerRole
+      Name: IrisBatchJobQueue
 
-  SageMakerManagerFunction:
-    Description: SageMaker Manager Lambda Function (for auto-wake/sleep)
-    Value: !Ref SageMakerManagerFunction
+  BatchJobDefinition:
+    Description: AWS Batch Job Definition
+    Value: !Ref BatchJobDefinition
     Export:
-      Name: IrisSageMakerManagerFunction
+      Name: IrisBatchJobDefinition
+
+  ECRRepository:
+    Description: ECR Repository for Batch Docker images
+    Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${BatchECRRepository}'
+    Export:
+      Name: IrisECRRepository
 
   UserPoolId:
     Description: Cognito User Pool ID

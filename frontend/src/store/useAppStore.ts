@@ -1,7 +1,7 @@
 import { create, type StateCreator } from 'zustand'
 import { loadImageFromFiles } from '../services/itkLoader'
 
-export type JobStatus = 'PENDING' | 'RUNNING' | 'PROCESSING' | 'SUBMITTED' | 'SUCCEEDED' | 'FAILED'
+export type JobStatus = 'idle' | 'uploading' | 'queued' | 'processing' | 'completed' | 'failed'
 
 export type Pane = 'sagittal' | 'coronal' | 'axial' | '3d'
 
@@ -19,9 +19,10 @@ interface ViewerState {
 
 interface JobState {
   id?: string
-  status?: JobStatus
-  progress?: number
+  status: JobStatus
+  progress: number
   error?: string
+  message?: string
 }
 
 interface UploadItem {
@@ -52,6 +53,7 @@ interface AppState {
   layout: { fullscreenPane: Pane | null }
   structures: StructureItem[]
   artifacts?: { obj: string; mtl: string; json: string; zip: string }
+  jobPollTimer?: number
   queueFiles: (files: File[]) => void
   removeUpload: (id: string) => void
   clearUploads: () => void
@@ -67,12 +69,63 @@ interface AppState {
   toggleCrosshair: () => void
   toggleTheme: () => void
   startProcessing: () => Promise<void>
+  startJobMonitor: (jobId: string) => Promise<void>
+  stopJobMonitor: () => void
   toggleFullscreen: (pane: Pane) => void
   exitFullscreen: () => void
   setStructures: (items: StructureItem[]) => void
   setStructureVisible: (id: string, visible: boolean) => void
   setStructureOpacity: (id: string, opacity: number) => void
   setStructureColor: (id: string, color: [number, number, number]) => void
+}
+
+const statusProgress: Record<JobStatus, number> = {
+  idle: 0,
+  uploading: 20,
+  queued: 45,
+  processing: 80,
+  completed: 100,
+  failed: 100,
+}
+
+const statusMessages: Record<JobStatus, string> = {
+  idle: 'Ready to start processing.',
+  uploading: 'Uploading study to secure storage...',
+  queued: 'Waking up the GPU endpoint (5-10 min on first run).',
+  processing: 'AI is processing your study (typically 10-15 min).',
+  completed: 'Processing finished. 3D models are ready to view.',
+  failed: 'Processing failed. Please review the error and try again.',
+}
+
+const normalizeStatus = (status?: string): JobStatus => {
+  if (!status) return 'idle'
+  const normalized = status.toLowerCase()
+  if (normalized === 'queued') return 'queued'
+  if (normalized === 'processing') return 'processing'
+  if (normalized === 'completed' || normalized === 'succeeded' || normalized === 'success') return 'completed'
+  if (normalized === 'failed' || normalized === 'error') return 'failed'
+  if (normalized === 'uploading' || normalized === 'uploaded' || normalized === 'pending') return 'uploading'
+  return 'idle'
+}
+
+const buildStructuresFromSystems = (systems: any): StructureItem[] => {
+  if (!systems || typeof systems !== 'object') return []
+  const items: StructureItem[] = []
+  Object.entries<any>(systems).forEach(([system, arr]) => {
+    if (Array.isArray(arr)) {
+      for (const it of arr) {
+        items.push({
+          id: `${system}__${it.object_name}`,
+          name: it.object_name,
+          system,
+          color: Array.isArray(it.color) && it.color.length === 3 ? [it.color[0], it.color[1], it.color[2]] : [200, 200, 200],
+          visible: true,
+          opacity: 100,
+        })
+      }
+    }
+  })
+  return items
 }
 
 const creator: StateCreator<AppState> = (set, get) => ({
@@ -85,10 +138,32 @@ const creator: StateCreator<AppState> = (set, get) => ({
     coronalIndex: 0,
     sagittalIndex: 0,
   },
+  updateSlice: (plane, delta) =>
+    set((state) => ({
+      viewer: {
+        ...state.viewer,
+        [`${plane}Index`]: Math.max(0, state.viewer[`${plane}Index`] + delta),
+      } as ViewerState,
+    })),
+  setSliceIndex: (plane, index) =>
+    set((state) => ({
+      viewer: {
+        ...state.viewer,
+        [`${plane}Index`]: index,
+      } as ViewerState,
+    })),
+  setWW: (v) => set((state) => ({ viewer: { ...state.viewer, ww: v } })),
+  setWL: (v) => set((state) => ({ viewer: { ...state.viewer, wl: v } })),
+  setScale: (scale) => set((state) => ({ viewer: { ...state.viewer, scale } })),
+  setPan: (x, y) => set((state) => ({ viewer: { ...state.viewer, panX: x, panY: y } })),
+  toggleCrosshair: () =>
+    set((state) => ({ viewer: { ...state.viewer, crosshair: !state.viewer.crosshair } })),
+  toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
   job: {
     id: undefined,
-    status: undefined,
+    status: 'idle',
     progress: 0,
+    message: statusMessages.idle,
   },
   uploads: [],
   studyId: undefined,
@@ -97,6 +172,7 @@ const creator: StateCreator<AppState> = (set, get) => ({
   layout: { fullscreenPane: null },
   structures: [],
   artifacts: undefined,
+  jobPollTimer: undefined,
   queueFiles: (files: File[]) =>
     set((state) => ({
       uploads: state.uploads.concat(
@@ -131,138 +207,11 @@ const creator: StateCreator<AppState> = (set, get) => ({
       console.warn('[store] loadLocalFiles error:', e)
     }
   },
-  startUploads: async () => {
-    const { uploads } = get()
-    if (!uploads.length) return
-    
-    const backend = (import.meta as any).env?.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
-    
-    try {
-      // Get authentication token
-      const { fetchAuthSession } = await import('aws-amplify/auth')
-      const session = await fetchAuthSession()
-      const token = session.tokens?.idToken?.toString()
-      
-      if (!token) {
-        throw new Error('Not authenticated. Please log in again.')
-      }
-
-      // Load files locally for visualization first
-      try {
-        const files = uploads.map((u) => u.file)
-        console.log('[store] startUploads -> loadLocalFiles with', files.length, 'files')
-        await get().loadLocalFiles(files)
-      } catch (e) {
-        console.warn('[store] startUploads: loadLocalFiles failed:', e)
-      }
-
-      // Upload each file to S3 via backend
-      for (const u of uploads) {
-        try {
-          set((s) => ({ uploads: s.uploads.map((it) => (it.id === u.id ? { ...it, status: 'uploading', progress: 0 } : it)) }))
-          
-          // Step 1: Get presigned URL
-          console.log(`[upload] Getting presigned URL for: ${u.file.name}`)
-          const uploadResp = await fetch(`${backend}/upload`, {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              filename: u.file.name,
-              contentType: u.file.type || 'application/octet-stream'
-            })
-          })
-          
-          if (!uploadResp.ok) {
-            throw new Error(`Upload request failed: ${uploadResp.status}`)
-          }
-          
-          const uploadData = await uploadResp.json()
-          console.log(`[upload] Got presigned URL for: ${u.file.name}`)
-          
-          set((s) => ({ uploads: s.uploads.map((it) => (it.id === u.id ? { ...it, progress: 25 } : it)) }))
-          
-          // Step 2: Upload to S3
-          console.log(`[upload] Uploading to S3: ${u.file.name}`)
-          const s3Upload = await fetch(uploadData.uploadUrl, {
-            method: 'PUT',
-            body: u.file,
-            headers: {
-              'Content-Type': u.file.type || 'application/octet-stream'
-            }
-          })
-          
-          if (!s3Upload.ok) {
-            throw new Error(`S3 upload failed: ${s3Upload.status}`)
-          }
-          
-          console.log(`[upload] Successfully uploaded: ${u.file.name}`)
-          
-          // Update status in backend to 'uploaded'
-          try {
-            await fetch(`${backend}/studies/${uploadData.jobId}/status`, {
-              method: 'PATCH',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
-              body: JSON.stringify({ status: 'uploaded' })
-            })
-            console.log(`[upload] Status updated to 'uploaded' for jobId: ${uploadData.jobId}`)
-          } catch (statusError) {
-            console.error('[upload] Failed to update status:', statusError)
-            // Continue anyway, upload was successful
-          }
-          
-          // Mark as done
-          set((s) => ({ 
-            uploads: s.uploads.map((it) => (it.id === u.id ? { ...it, status: 'done', progress: 100 } : it)),
-            studyId: uploadData.jobId
-          }))
-          
-        } catch (e: any) {
-          console.error(`[upload] Error uploading ${u.file.name}:`, e)
-          set((s) => ({
-            uploads: s.uploads.map((it) => (it.id === u.id ? { ...it, status: 'error', error: e?.message || 'Upload failed' } : it))
-          }))
-        }
-      }
-    } catch (e: any) {
-      console.error('[upload] startUploads error:', e)
-      set((s) => ({
-        uploads: s.uploads.map((it) => (it.status === 'done' ? it : { ...it, status: 'error', error: e?.message || 'Upload failed' })),
-      }))
-    }
-  },
-  updateSlice: (plane, delta) =>
-    set((state) => {
-      const v = { ...state.viewer }
-      if (plane === 'axial') v.axialIndex += delta
-      if (plane === 'coronal') v.coronalIndex += delta
-      if (plane === 'sagittal') v.sagittalIndex += delta
-      return { viewer: v }
-    }),
-  setSliceIndex: (plane, index) =>
-    set((state) => {
-      const v = { ...state.viewer }
-      if (plane === 'axial') v.axialIndex = index
-      if (plane === 'coronal') v.coronalIndex = index
-      if (plane === 'sagittal') v.sagittalIndex = index
-      return { viewer: v }
-    }),
-  setWW: (v: number) => set((s) => ({ viewer: { ...s.viewer, ww: v } })),
-  setWL: (v: number) => set((s) => ({ viewer: { ...s.viewer, wl: v } })),
-  setScale: (v: number) => set((s) => ({ viewer: { ...s.viewer, scale: v } })),
-  setPan: (x: number, y: number) => set((s) => ({ viewer: { ...s.viewer, panX: x, panY: y } })),
-  toggleCrosshair: () => set((s) => ({ viewer: { ...s.viewer, crosshair: !s.viewer.crosshair } })),
-  toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
   startProcessing: async () => {
-    let backend = (import.meta as any).env?.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
-    set({ job: { id: '', status: 'RUNNING', progress: 0 } })
+    const backend = (import.meta as any).env?.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
+
     try {
-      // Get authentication token
+      set((s) => ({ job: { ...s.job, status: 'uploading', progress: statusProgress.uploading, message: statusMessages.uploading } }))
       const { fetchAuthSession } = await import('aws-amplify/auth')
       const session = await fetchAuthSession()
       const token = session.tokens?.idToken?.toString()
@@ -271,41 +220,16 @@ const creator: StateCreator<AppState> = (set, get) => ({
         throw new Error('Not authenticated. Please log in again.')
       }
 
-      // Check if we already have a studyId (file already uploaded)
-      const { studyId, uploads } = get()
+      const { studyId, lastLocalFiles } = get()
       let jobId = studyId
-      
-      // If no studyId, check if there are queued uploads and upload them
-      if (!jobId) {
-        const anyQueued = uploads.some(u => u.status === 'queued')
-        if (anyQueued) {
-          console.log('[process] Uploading queued files first...')
-          await get().startUploads()
-          // Get the studyId set by startUploads
-          jobId = get().studyId
-          console.log('[process] Files uploaded, jobId:', jobId)
-        }
-      }
 
-      // If still no jobId, need to upload a file
+      // If no studyId, we need to upload first
       if (!jobId) {
         console.log('[process] No study uploaded, creating new upload...')
         
-        // Check backend health
-        const healthy = await fetch(`${backend}/healthz`, { method: 'GET' }).then(r => r.ok).catch(() => false)
-        if (!healthy) {
-          throw new Error(`Backend offline at ${backend}. Please check your API Gateway.`)
-        }
-        
-        // Pick a NIfTI from lastLocalFiles
-        const { lastLocalFiles } = get()
         const nifti = (lastLocalFiles || []).find(f => /\.nii(\.gz)?$/i.test(f.name)) || lastLocalFiles?.[0]
         if (!nifti) throw new Error('No file available to process. Please upload a file first.')
 
-        // Step 1: Get presigned URL for upload
-        console.log('[process] Step 1: Requesting upload URL...')
-        set((s) => ({ job: { ...s.job, progress: 5 } }))
-        
         const uploadResp = await fetch(`${backend}/upload`, {
           method: 'POST',
           headers: { 
@@ -331,10 +255,11 @@ const creator: StateCreator<AppState> = (set, get) => ({
         }
 
         jobId = uploadData.jobId
-        set({ job: { id: jobId, status: 'RUNNING', progress: 10 }, studyId: jobId })
+        set((s) => ({
+          job: { id: jobId, status: 'uploading', progress: 35, message: statusMessages.uploading },
+          studyId: jobId,
+        }))
 
-        // Step 2: Upload file to S3 using presigned URL
-        console.log('[process] Step 2: Uploading file to S3...')
         const s3Upload = await fetch(uploadData.uploadUrl, {
           method: 'PUT',
           body: nifti,
@@ -349,7 +274,6 @@ const creator: StateCreator<AppState> = (set, get) => ({
 
         console.log('[process] File uploaded to S3 successfully')
         
-        // Update status to 'uploaded' in backend
         try {
           await fetch(`${backend}/studies/${jobId}/status`, {
             method: 'PATCH',
@@ -365,14 +289,15 @@ const creator: StateCreator<AppState> = (set, get) => ({
           // Continue anyway, upload was successful
         }
         
-        set((s) => ({ job: { ...s.job, progress: 30 } }))
+        set((s) => ({ job: { ...s.job, progress: 50, message: 'Upload complete. Preparing processing request...' } }))
       } else {
         console.log('[process] Using already uploaded study:', jobId)
-        set({ job: { id: jobId, status: 'RUNNING', progress: 20 } })
+        set((s) => ({
+          job: { id: jobId, status: 'uploading', progress: 30, message: 'Reusing existing upload...' },
+        }))
       }
 
-      // Step 3: Trigger processing
-      console.log('[process] Step 3: Starting SageMaker processing...')
+      // Now trigger the processing
       const processResp = await fetch(`${backend}/process/totalseg`, {
         method: 'POST',
         headers: { 
@@ -395,72 +320,131 @@ const creator: StateCreator<AppState> = (set, get) => ({
       const meta = await processResp.json()
       console.log('[process] Processing started:', meta)
 
-      // Note: Processing is now asynchronous. 
-      // For now, we'll show the job is submitted and wait for completion
-      // TODO: Implement polling for job status
-      
-      set((s) => ({ job: { ...s.job, progress: 50, status: 'PROCESSING' } }))
-      console.log('[process] Job submitted to SageMaker. JobId:', jobId)
+      set((s) => ({
+        job: {
+          id: jobId,
+          status: 'queued',
+          progress: statusProgress.queued,
+          message: statusMessages.queued,
+          error: undefined,
+        },
+        studyId: jobId,
+      }))
+
+      console.log('[process] Job submitted. JobId:', jobId)
       console.log('[process] This may take 15-25 minutes on first run (endpoint creation + processing)')
       console.log('[process] Subsequent runs will be faster (10-15 minutes)')
-      
-      // For MVP: show success message that processing started
-      // The user will need to manually check back or we need to implement polling
-      set((s) => ({ 
-        job: { 
-          ...s.job, 
-          progress: 100, 
-          status: 'SUBMITTED',
-          message: 'Processing started on SageMaker. This may take 15-25 minutes. Check back later for results.' 
-        } 
-      }))
-      
-      // TODO: Implement proper polling and result fetching
-      // For now, we'll just return early
-      
-      /* Original code for when polling is implemented:
-      set((s) => ({ job: { ...s.job, progress: 70 } }))
-      const relJson = meta?.artifacts?.json
-      const relObj = meta?.artifacts?.obj
-      const relMtl = meta?.artifacts?.mtl
-      const relZip = meta?.artifacts?.zip
-      if (!relJson || !relObj || !relMtl) throw new Error('Artifacts missing from backend response')
-      const jsonUrlAbs = `${backend}/files/${jobId}/Result.json`
-      const objUrlAbs = `${backend}/files/${jobId}/Result.obj`
-      const mtlUrlAbs = `${backend}/files/${jobId}/materials.mtl`
-      const zipUrlAbs = relZip ? `${backend}/files/${jobId}/${relZip}` : ''
-      set({ artifacts: { obj: objUrlAbs, mtl: mtlUrlAbs, json: jsonUrlAbs, zip: zipUrlAbs } })
 
-      const jsonResp = await fetch(jsonUrlAbs)
-      if (!jsonResp.ok) throw new Error('Failed to fetch Result.json')
-      const systems = await jsonResp.json()
+      if (!jobId) {
+        throw new Error('Job ID missing after process start')
+      }
 
-      // Map systems JSON to structures list
-      const structures: StructureItem[] = []
-      Object.entries<any>(systems).forEach(([system, arr]) => {
-        if (Array.isArray(arr)) {
-          for (const it of arr) {
-            structures.push({
-              id: `${system}__${it.object_name}`,
-              name: it.object_name,
-              system,
-              color: Array.isArray(it.color) && it.color.length === 3 ? [it.color[0], it.color[1], it.color[2]] : [200,200,200],
-              visible: true,
-              opacity: 100,
-            })
-          }
-        }
-      })
-      set({ structures })
-      set((s) => ({ job: { ...s.job, progress: 100, status: 'SUCCEEDED' } }))
-      */
+      await get().startJobMonitor(jobId)
+
     } catch (e: any) {
-      // eslint-disable-next-line no-console
       console.warn('[process] error:', e)
-      set((s) => ({ job: { ...s.job, progress: 100, status: 'FAILED', error: e?.message || 'Processing failed' } }))
+      set((s) => ({
+        job: {
+          ...s.job,
+          status: 'failed',
+          progress: statusProgress.failed,
+          error: e?.message || 'Processing failed',
+          message: e?.message || statusMessages.failed,
+        },
+      }))
     }
   },
-  toggleFullscreen: (pane) => set((s) => ({ layout: { fullscreenPane: s.layout.fullscreenPane === pane ? null : pane } })),
+  startUploads: async () => {
+    // Legacy function for backwards compatibility - just calls startProcessing
+    await get().startProcessing()
+  },
+  startJobMonitor: async (jobId: string) => {
+    const backend = (import.meta as any).env?.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
+    const { jobPollTimer, stopJobMonitor } = get()
+
+    if (jobPollTimer) {
+      stopJobMonitor()
+    }
+
+    const poll = async () => {
+      try {
+        const { fetchAuthSession } = await import('aws-amplify/auth')
+        const session = await fetchAuthSession()
+        const token = session.tokens?.idToken?.toString()
+        if (!token) {
+          throw new Error('Not authenticated. Please log in again.')
+        }
+
+        const res = await fetch(`${backend}/jobs/${jobId}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (!res.ok) {
+          throw new Error(`Job status request failed: ${res.status}`)
+        }
+
+        const data = await res.json()
+        const jobPayload = data?.job || {}
+        const normalizedStatus = normalizeStatus(jobPayload.status)
+        const message = statusMessages[normalizedStatus]
+        const progress = statusProgress[normalizedStatus]
+        const errorMessage: string | undefined = jobPayload.errorMessage
+        const artifactUrls = jobPayload.artifactUrls as Record<string, string> | undefined
+
+        set((s) => ({
+          job: {
+            id: jobId,
+            status: normalizedStatus,
+            progress,
+            message,
+            error: normalizedStatus === 'failed' ? (errorMessage || 'Processing failed') : undefined,
+          },
+          artifacts: artifactUrls && Object.keys(artifactUrls).length ? {
+            obj: artifactUrls.obj || s.artifacts?.obj || '',
+            mtl: artifactUrls.mtl || s.artifacts?.mtl || '',
+            json: artifactUrls.json || s.artifacts?.json || '',
+            zip: artifactUrls.zip || s.artifacts?.zip || '',
+          } : s.artifacts,
+        }))
+
+        if (normalizedStatus === 'completed' && artifactUrls?.json) {
+          try {
+            const jsonResp = await fetch(artifactUrls.json)
+            if (jsonResp.ok) {
+              const systems = await jsonResp.json()
+              const structures = buildStructuresFromSystems(systems)
+              set({ structures })
+            } else {
+              console.warn('[process] Failed to fetch structures JSON:', jsonResp.status)
+            }
+          } catch (err) {
+            console.warn('[process] Error fetching structures JSON:', err)
+          }
+        }
+
+        if (normalizedStatus === 'completed' || normalizedStatus === 'failed') {
+          stopJobMonitor()
+        }
+      } catch (err) {
+        console.error('[process] Error polling job status:', err)
+      }
+    }
+
+    await poll()
+    const timer = window.setInterval(poll, 15000)
+    set({ jobPollTimer: timer })
+  },
+  stopJobMonitor: () => {
+    const current = get().jobPollTimer
+    if (current) {
+      window.clearInterval(current)
+      set({ jobPollTimer: undefined })
+    }
+  },
+  toggleFullscreen: (pane) => set((s) => ({ layout: { fullscreenPane: s.layout.fullscreenPane == null || s.layout.fullscreenPane !== pane ? pane : null } })),
   exitFullscreen: () => set(() => ({ layout: { fullscreenPane: null } })),
   setStructures: (items) => set(() => ({ structures: items })),
   setStructureVisible: (id, visible) => set((s) => ({ structures: s.structures.map((it) => (it.id === id ? { ...it, visible } : it)) })),
