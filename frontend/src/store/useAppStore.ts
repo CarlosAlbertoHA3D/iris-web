@@ -93,8 +93,8 @@ const statusProgress: Record<JobStatus, number> = {
 const statusMessages: Record<JobStatus, string> = {
   idle: 'Ready to start processing.',
   uploading: 'Uploading study to secure storage...',
-  queued: 'Starting CPU Spot instance (3-5 min)...',
-  processing: 'AI is processing your study on small CPU (typically 90-120 min).',
+  queued: 'Starting GPU Spot instance (3-5 min)...',
+  processing: 'AI is processing your study on GPU (typically 15-20 min).',
   completed: 'Processing finished. 3D models are ready to view.',
   failed: 'Processing failed. Please review the error and try again.',
 }
@@ -343,7 +343,7 @@ const creator: StateCreator<AppState> = (set, get) => ({
       }
 
       console.log('[process] Starting processing for study:', studyId)
-      set((s) => ({ job: { ...s.job, status: 'queued', progress: 50, message: 'Submitting job to CPU queue...' } }))
+      set((s) => ({ job: { ...s.job, status: 'queued', progress: 50, message: 'Submitting job to GPU queue...' } }))
 
       // Now trigger the processing
       const processResp = await fetch(`${backend}/process/totalseg`, {
@@ -354,7 +354,7 @@ const creator: StateCreator<AppState> = (set, get) => ({
         },
         body: JSON.stringify({
           jobId: studyId,
-          device: 'cpu',  // Using CPU while GPU quota is pending
+          device: 'gpu',
           fast: true,
           reduction_percent: 90
         })
@@ -380,8 +380,8 @@ const creator: StateCreator<AppState> = (set, get) => ({
       }))
 
       console.log('[process] Job submitted. JobId:', studyId)
-      console.log('[process] This may take 93-125 minutes (Spot c5.large startup + CPU processing)')
-      console.log('[process] Using small CPU Spot instance (c5.large) due to quota limits')
+      console.log('[process] This may take 18-25 minutes (Spot instance startup + GPU processing)')
+      console.log('[process] Using GPU Spot instances (g4dn.xlarge)')
 
       await get().startJobMonitor(studyId)
 

@@ -226,11 +226,11 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
-  # Batch Compute Environment (CPU Spot Small - c5.large for minimal quota)
-  BatchCPUSpotSmallComputeEnvironment:
+  # Batch Compute Environment (GPU Spot - g4dn.xlarge)
+  BatchGPUSpotComputeEnvironment:
     Type: AWS::Batch::ComputeEnvironment
     Properties:
-      ComputeEnvironmentName: iris-cpu-spot-small-v4
+      ComputeEnvironmentName: iris-gpu-spot-compute-v5
       Type: MANAGED
       State: ENABLED
       ServiceRole: !GetAtt BatchServiceRole.Arn
@@ -239,20 +239,20 @@ Resources:
         AllocationStrategy: SPOT_CAPACITY_OPTIMIZED
         BidPercentage: 100
         MinvCpus: 0
-        MaxvCpus: 16
+        MaxvCpus: 32
         DesiredvCpus: 0
         InstanceTypes:
-          - c5.large  # 2 vCPUs, 4 GB RAM - minimal quota requirement
+          - g4dn.xlarge
         Subnets:
           - !Ref BatchSubnet
         SecurityGroupIds:
           - !Ref BatchSecurityGroup
         InstanceRole: !GetAtt BatchInstanceProfile.Arn
         Tags:
-          Name: iris-batch-instance
+          Name: iris-batch-gpu-instance
           Application: iris-oculus
         Ec2Configuration:
-          - ImageType: ECS_AL2
+          - ImageType: ECS_AL2_NVIDIA
 
   # VPC for Batch (simple setup)
   BatchVPC:
@@ -328,7 +328,7 @@ Resources:
       Priority: 1
       ComputeEnvironmentOrder:
         - Order: 1
-          ComputeEnvironment: !Ref BatchCPUSpotSmallComputeEnvironment
+          ComputeEnvironment: !Ref BatchGPUSpotComputeEnvironment
 
   # Batch Job Definition
   BatchJobDefinition:
@@ -340,8 +340,11 @@ Resources:
         - EC2
       ContainerProperties:
         Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${BatchECRRepository}:latest'
-        Vcpus: 2
-        Memory: 4096
+        Vcpus: 4
+        Memory: 15000
+        ResourceRequirements:
+          - Type: GPU
+            Value: '1'
         ExecutionRoleArn: !GetAtt BatchTaskExecutionRole.Arn
         JobRoleArn: !GetAtt BatchInstanceRole.Arn
         Environment:
@@ -350,7 +353,7 @@ Resources:
           - Name: DYNAMODB_TABLE
             Value: !Ref MetadataTable
           - Name: DEVICE
-            Value: cpu
+            Value: gpu
           - Name: FAST
             Value: 'true'
           - Name: REDUCTION_PERCENT
