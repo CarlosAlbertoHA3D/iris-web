@@ -11,6 +11,7 @@ type View = 'dashboard' | 'viewer'
 
 function AuthenticatedApp() {
   const [view, setView] = useState<View>('dashboard')
+  const [isLoading, setIsLoading] = useState(false)
   const loadLocalFiles = useAppStore(s => s.loadLocalFiles)
 
   // Clear store on mount (fresh login)
@@ -36,6 +37,7 @@ function AuthenticatedApp() {
 
   const handleViewStudy = async (studyUrl: string, jobId: string, filename: string) => {
     try {
+      setIsLoading(true)
       console.log('[view-study] Loading study:', { jobId, filename, url: studyUrl })
       
       // Download the file from S3
@@ -70,11 +72,21 @@ function AuthenticatedApp() {
     } catch (error) {
       console.error('[view-study] Error:', error)
       alert(`Failed to load study: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setIsLoading(false)
     }
   }
 
   return (
     <>
+      {isLoading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm text-white">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <p className="text-lg font-medium">Loading study...</p>
+          </div>
+        </div>
+      )}
       {view === 'dashboard' ? (
         <Dashboard 
           onUploadNewStudy={() => setView('viewer')}

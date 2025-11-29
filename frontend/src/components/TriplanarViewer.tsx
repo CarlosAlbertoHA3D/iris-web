@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
+import { loadImageFromFiles } from '../services/itkLoader'
 
 export type Plane = 'sagittal' | 'coronal' | 'axial'
 
@@ -9,6 +10,12 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [fallbackActive, setFallbackActive] = useState(false)
   const [viewerReadyTick, setViewerReadyTick] = useState(0)
+  
+  // Segmentation state
+  const artifacts = useAppStore(s => s.artifacts)
+  const [labelImage, setLabelImage] = useState<any>(null)
+  const [showLabel, setShowLabel] = useState(true)
+
   const crosshair = useAppStore(s => s.viewer.crosshair)
   const ww = useAppStore(s => s.viewer.ww)
   const wl = useAppStore(s => s.viewer.wl)
@@ -26,6 +33,41 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
   const panX = useAppStore(s => s.viewer.panX)
   const panY = useAppStore(s => s.viewer.panY)
   const initWWWL = useRef(false)
+
+  // Download segmentation mask if available
+  useEffect(() => {
+    if (!artifacts?.segmentation || labelImage) return
+    
+    fetch(artifacts.segmentation)
+        .then(res => {
+            if (!res.ok) throw new Error('Fetch failed')
+            return res.blob()
+        })
+        .then(blob => {
+            const file = new File([blob], "segmentation.nii.gz")
+            loadImageFromFiles([file]).then(res => {
+                if (res?.image) {
+                    console.log(`[viewer] Label image loaded for ${plane}`)
+                    setLabelImage(res.image)
+                }
+            })
+        })
+        .catch(err => console.warn('[viewer] Failed to load segmentation', err))
+  }, [artifacts?.segmentation])
+
+  // Sync label image with viewer
+  useEffect(() => {
+    const v = viewer.current
+    if (!v) return
+    
+    if (typeof v.setLabelImage === 'function') {
+        if (labelImage && showLabel) {
+            v.setLabelImage(labelImage)
+        } else {
+            v.setLabelImage(null)
+        }
+    }
+  }, [labelImage, showLabel, viewerReadyTick, currentImage])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -99,6 +141,43 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
       viewer.current = null
     }
   }, [])
+
+  // Force resize/redraw after CSS transition (300ms)
+  const [, forceUpdate] = useState(0)
+  useEffect(() => {
+    const timers: number[] = []
+    // Check at intervals, and definitely after transition ends
+    ;[50, 150, 300, 400].forEach(t => {
+        timers.push(window.setTimeout(() => {
+            const v = viewer.current
+            
+            // 1. Force VTK Resize & Render
+            if (v) {
+                try { if (typeof v.resize === 'function') v.resize() } catch {}
+                
+                // Hack: Re-set current slice to force pipeline update (fixes aspect ratio)
+                try {
+                    if (plane === 'axial') {
+                        const idx = useAppStore.getState().viewer.axialIndex
+                        if (typeof v.setZSlice === 'function') v.setZSlice(idx)
+                    } else if (plane === 'coronal') {
+                        const idx = useAppStore.getState().viewer.coronalIndex
+                        if (typeof v.setYSlice === 'function') v.setYSlice(idx)
+                    } else if (plane === 'sagittal') {
+                        const idx = useAppStore.getState().viewer.sagittalIndex
+                        if (typeof v.setXSlice === 'function') v.setXSlice(idx)
+                    }
+                } catch {}
+                
+                try { if (typeof v.render === 'function') v.render() } catch {}
+            }
+
+            // 2. Force Fallback Redraw
+            forceUpdate(n => n + 1)
+        }, t))
+    })
+    return () => timers.forEach(t => clearTimeout(t))
+  }, [tall, plane])
 
   // Mouse wheel / touchpad: change slices
   useEffect(() => {
@@ -285,6 +364,7 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
       if (plane === 'axial') { w = sx; h = sy }
       if (plane === 'coronal') { w = sx; h = sz }
       if (plane === 'sagittal') { w = sy; h = sz }
+      
       // Allocate RGBA buffer
       const imageData = new ImageData(w, h)
       // Window/level
@@ -294,11 +374,12 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
       const max = wl + ww / 2
       const denom = Math.max(1e-6, max - min)
       const clamp01 = (v: number) => Math.max(0, Math.min(1, (v - min) / denom))
-      // Fill
+      
+      // Fill buffer
       if (plane === 'axial') {
         for (let y = 0; y < h; y++) {
           for (let x = 0; x < w; x++) {
-            const v = pick(x, (sy - 1 - y), zIndex) // flip Y so superior appears up
+            const v = pick(x, (sy - 1 - y), zIndex)
             const g = Math.round(clamp01(v) * 255)
             const off = (y * w + x) * 4
             imageData.data[off + 0] = g
@@ -311,7 +392,7 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
         const yIndex = Math.max(0, Math.min(sy - 1, useAppStore.getState().viewer.coronalIndex))
         for (let z = 0; z < h; z++) {
           for (let x = 0; x < w; x++) {
-            const v = pick(x, yIndex, (sz - 1 - z)) // flip Z so superior appears up
+            const v = pick(x, yIndex, (sz - 1 - z))
             const g = Math.round(clamp01(v) * 255)
             const off = (z * w + x) * 4
             imageData.data[off + 0] = g
@@ -324,7 +405,7 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
         const xIndex = Math.max(0, Math.min(sx - 1, useAppStore.getState().viewer.sagittalIndex))
         for (let z = 0; z < h; z++) {
           for (let y = 0; y < w; y++) {
-            const v = pick(xIndex, y, (sz - 1 - z)) // flip Z so superior appears up
+            const v = pick(xIndex, y, (sz - 1 - z))
             const g = Math.round(clamp01(v) * 255)
             const off = (z * w + y) * 4
             imageData.data[off + 0] = g
@@ -334,28 +415,36 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
           }
         }
       }
+
       // Resize canvas to container
+      const rect = container.getBoundingClientRect()
       const dpr = Math.min(2, window.devicePixelRatio || 1)
-      const cw = Math.max(1, container.clientWidth)
-      const ch = Math.max(1, container.clientHeight)
+      const cw = rect.width
+      const ch = rect.height
+      
       canvas.width = Math.floor(cw * dpr)
       canvas.height = Math.floor(ch * dpr)
+      
       const ctx = canvas.getContext('2d')!
-      // Draw slice into an offscreen canvas at native size, then scale to fit
+      
+      // Offscreen rendering
       const off = document.createElement('canvas')
       off.width = w
       off.height = h
       const offCtx = off.getContext('2d')!
       offCtx.putImageData(imageData, 0, 0)
+      
       // Fit preserving aspect
       const scale = Math.min(cw / w, ch / h)
-      const dw = Math.floor(w * scale)
-      const dh = Math.floor(h * scale)
-      const dx = Math.floor((cw - dw) / 2)
-      const dy = Math.floor((ch - dh) / 2)
+      const dw = w * scale
+      const dh = h * scale
+      const dx = (cw - dw) / 2
+      const dy = (ch - dh) / 2
+      
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      ctx.clearRect(0, 0, cw, ch)
-      ctx.imageSmoothingEnabled = false
+      ctx.fillStyle = 'black'
+      ctx.fillRect(0, 0, cw, ch)
+      ctx.imageSmoothingEnabled = false // Pixelated look for medical images
       ctx.drawImage(off, dx, dy, dw, dh)
     }
     toSlice()
@@ -548,6 +637,19 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
           </div>
         </div>
       )}
+      
+      {/* Overlay Toggle */}
+      {labelImage && (
+        <div className="absolute top-2 right-2 z-10 pointer-events-auto">
+            <button 
+                onClick={(e) => { e.stopPropagation(); setShowLabel(!showLabel) }}
+                className="bg-black/60 hover:bg-black/80 text-white px-2 py-1 rounded text-[10px] border border-white/20 transition-colors"
+            >
+                {showLabel ? 'Hide Masks' : 'Show Masks'}
+            </button>
+        </div>
+      )}
+
       {fallbackActive && (
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       )}

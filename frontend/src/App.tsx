@@ -79,71 +79,92 @@ export default function App({ isIntegrated = false, onBackToDashboard }: AppProp
           <div className="mb-4">
             <UploadsList />
           </div>
-          {fullscreenPane ? (
-            <div className="rounded-lg border bg-card p-2">
-              <div className="flex items-center justify-between mb-1">
-                <div className="text-sm text-muted-foreground capitalize">{fullscreenPane === '3d' ? '3D' : fullscreenPane}</div>
+          {/* Viewer Grid Container */}
+          <div className="relative h-[calc(100vh-130px)] w-full bg-background rounded-lg overflow-hidden border grid grid-cols-2 grid-rows-2 gap-1 p-1">
+            
+            {/* Sagittal Panel */}
+            <div className={`
+                flex flex-col bg-card border rounded-md overflow-hidden transition-all duration-300 ease-in-out
+                ${fullscreenPane === 'sagittal' 
+                    ? 'absolute inset-0 z-50 m-0 rounded-none border-0 w-full h-full' 
+                    : 'relative w-full h-full'
+                }
+            `}>
+              <div className="flex items-center justify-between px-2 py-1 bg-secondary/30 shrink-0 border-b">
+                <div className="text-xs font-medium text-muted-foreground">Sagittal</div>
+                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => toggleFullscreen('sagittal')}>
+                  {fullscreenPane === 'sagittal' ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
+                </Button>
+              </div>
+              <div className="flex-1 relative min-h-0 bg-black">
+                <TriplanarViewer plane="sagittal" tall={!!fullscreenPane} />
+              </div>
+            </div>
+
+            {/* Coronal Panel */}
+            <div className={`
+                flex flex-col bg-card border rounded-md overflow-hidden transition-all duration-300 ease-in-out
+                ${fullscreenPane === 'coronal' 
+                    ? 'absolute inset-0 z-50 m-0 rounded-none border-0 w-full h-full' 
+                    : 'relative w-full h-full'
+                }
+            `}>
+              <div className="flex items-center justify-between px-2 py-1 bg-secondary/30 shrink-0 border-b">
+                <div className="text-xs font-medium text-muted-foreground">Coronal</div>
+                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => toggleFullscreen('coronal')}>
+                  {fullscreenPane === 'coronal' ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
+                </Button>
+              </div>
+              <div className="flex-1 relative min-h-0 bg-black">
+                <TriplanarViewer plane="coronal" tall={!!fullscreenPane} />
+              </div>
+            </div>
+
+            {/* Axial Panel */}
+            <div className={`
+                flex flex-col bg-card border rounded-md overflow-hidden transition-all duration-300 ease-in-out
+                ${fullscreenPane === 'axial' 
+                    ? 'absolute inset-0 z-50 m-0 rounded-none border-0 w-full h-full' 
+                    : 'relative w-full h-full'
+                }
+            `}>
+              <div className="flex items-center justify-between px-2 py-1 bg-secondary/30 shrink-0 border-b">
+                <div className="text-xs font-medium text-muted-foreground">Axial</div>
+                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => toggleFullscreen('axial')}>
+                  {fullscreenPane === 'axial' ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
+                </Button>
+              </div>
+              <div className="flex-1 relative min-h-0 bg-black">
+                <TriplanarViewer plane="axial" tall={!!fullscreenPane} />
+              </div>
+            </div>
+
+            {/* 3D Panel */}
+            <div className={`
+                flex flex-col bg-card border rounded-md overflow-hidden transition-all duration-300 ease-in-out
+                ${fullscreenPane === '3d' 
+                    ? 'absolute inset-0 z-50 m-0 rounded-none border-0 w-full h-full' 
+                    : 'relative w-full h-full'
+                }
+            `}>
+              <div className="flex items-center justify-between px-2 py-1 bg-secondary/30 shrink-0 border-b">
+                <div className="text-xs font-medium text-muted-foreground">3D Model</div>
                 <div className="flex items-center gap-2">
-                  {fullscreenPane === '3d' && (
-                    <div className="flex items-center gap-3">
-                      <Label htmlFor="opacity-full" className="text-xs">Opacity</Label>
-                      <div className="w-40"><Slider id="opacity-full" defaultValue={[80]} max={100} step={1} /></div>
-                    </div>
-                  )}
-                  <Button size="icon" variant="ghost" onClick={() => toggleFullscreen(fullscreenPane!)} title="Exit fullscreen">
-                    <Minimize2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-              {fullscreenPane === 'sagittal' && <TriplanarViewer plane="sagittal" tall />}
-              {fullscreenPane === 'coronal' && <TriplanarViewer plane="coronal" tall />}
-              {fullscreenPane === 'axial' && <TriplanarViewer plane="axial" tall />}
-              {fullscreenPane === '3d' && <ThreeDViewer tall />}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 grid-rows-2 gap-3">
-              <div className="rounded-lg border bg-card p-2">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="text-sm text-muted-foreground">Sagittal</div>
-                  <Button size="icon" variant="ghost" title="Fullscreen" onClick={() => toggleFullscreen('sagittal')}>
-                    <Maximize2 className="w-4 h-4" />
-                  </Button>
-                </div>
-                <TriplanarViewer plane="sagittal" />
-              </div>
-              <div className="rounded-lg border bg-card p-2">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="text-sm text-muted-foreground">Coronal</div>
-                  <Button size="icon" variant="ghost" title="Fullscreen" onClick={() => toggleFullscreen('coronal')}>
-                    <Maximize2 className="w-4 h-4" />
-                  </Button>
-                </div>
-                <TriplanarViewer plane="coronal" />
-              </div>
-              <div className="rounded-lg border bg-card p-2">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="text-sm text-muted-foreground">Axial</div>
-                  <Button size="icon" variant="ghost" title="Fullscreen" onClick={() => toggleFullscreen('axial')}>
-                    <Maximize2 className="w-4 h-4" />
-                  </Button>
-                </div>
-                <TriplanarViewer plane="axial" />
-              </div>
-              <div className="rounded-lg border bg-card p-2">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="text-sm text-muted-foreground">3D</div>
-                  <div className="flex items-center gap-3">
-                    <Label htmlFor="opacity" className="text-xs">Opacity</Label>
-                    <div className="w-40"><Slider id="opacity" defaultValue={[80]} max={100} step={1} /></div>
-                    <Button size="icon" variant="ghost" title="Fullscreen" onClick={() => toggleFullscreen('3d')}>
-                      <Maximize2 className="w-4 h-4" />
-                    </Button>
+                  <div className="flex items-center gap-2 px-2">
+                    <Label htmlFor="opacity" className="text-[10px] uppercase tracking-wider text-muted-foreground">Opacity</Label>
+                    <div className="w-24"><Slider id="opacity" defaultValue={[80]} max={100} step={1} /></div>
                   </div>
+                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => toggleFullscreen('3d')}>
+                    {fullscreenPane === '3d' ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
+                  </Button>
                 </div>
-                <ThreeDViewer />
+              </div>
+              <div className="flex-1 relative min-h-0 bg-black">
+                <ThreeDViewer tall={!!fullscreenPane} />
               </div>
             </div>
-          )}
+
+          </div>
         </main>
         <aside className="w-[320px] border-l p-4 bg-background/40">
           <SidePanel />
