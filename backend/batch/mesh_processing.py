@@ -143,12 +143,15 @@ def get_color_for_subobject(obj_name_original: str) -> Tuple[int, int, int]:
     return (200, 200, 200)
 
 
-def smooth_mesh(mesh: trimesh.Trimesh, iterations: int = 3):
+def smooth_mesh(mesh: trimesh.Trimesh, iterations: int = 8):
     """
     Smooth mesh to remove cubic/blocky appearance from segmentation
     Uses Laplacian smoothing to make surfaces more natural
     """
     try:
+        # Use trimesh's built-in smoothing if available (filter_laplacian)
+        # But our implementation is fine too. Let's use ours but with more iterations.
+        
         # Apply Laplacian smoothing
         for _ in range(iterations):
             # Get vertex neighbors
@@ -181,7 +184,13 @@ def decimate_mesh(mesh: trimesh.Trimesh, target_percent: float = 0.5):
         target_faces = max(100, int(len(mesh.faces) * target_percent))
         if len(mesh.faces) > target_faces:
             # Use trimesh simplification
-            simplified = mesh.simplify_quadric_decimation(target_faces)
+            # Note: face_count is the standard argument name for newer trimesh/open3d bindings
+            try:
+                simplified = mesh.simplify_quadric_decimation(face_count=target_faces)
+            except TypeError:
+                # Fallback for older versions or direct open3d calls
+                simplified = mesh.simplify_quadric_decimation(target_faces)
+                
             print(f"[decimate_mesh] Reduced from {len(mesh.faces)} to {len(simplified.faces)} faces")
             return simplified
         return mesh
@@ -204,11 +213,13 @@ def clean_mesh(mesh: trimesh.Trimesh, smooth: bool = True, decimate: bool = True
         
         # Apply smoothing to remove blocky appearance
         if smooth:
-            smooth_mesh(mesh, iterations=3)
+            # Increased iterations for smoother look (was 3)
+            smooth_mesh(mesh, iterations=20)
         
         # Optionally reduce polygon count for web performance
-        if decimate and len(mesh.faces) > 5000:
-            mesh = decimate_mesh(mesh, target_percent=0.6)
+        # Aggressive decimation to reduce file size (target 20% of original faces)
+        if decimate and len(mesh.faces) > 1000:
+            mesh = decimate_mesh(mesh, target_percent=0.20)
         
         # Fix normals
         mesh.fix_normals()
@@ -250,7 +261,7 @@ def mask_to_mesh(nii_path: Path, level: float = 0.5, smooth: bool = True) -> Opt
         return None
 
 
-def export_obj_with_submeshes(meshes: List[trimesh.Trimesh], names: List[str], out_dir: Path) -> Tuple[Path, Path, Path]:
+def export_obj_with_submeshes(meshes: List[trimesh.Trimesh], names: List[str], out_dir: Path, label_map: dict = None) -> Tuple[Path, Path, Path]:
     """Export meshes to OBJ + MTL + JSON with system grouping"""
     out_dir.mkdir(parents=True, exist_ok=True)
     obj_path = out_dir / "Result.obj"
@@ -287,10 +298,14 @@ def export_obj_with_submeshes(meshes: List[trimesh.Trimesh], names: List[str], o
             v_offset += vs.shape[0]
 
             color = get_color_for_subobject(real_name)
-            systems_data.setdefault(system_name, []).append({
+            entry = {
                 "object_name": real_name,
                 "color": list(color)
-            })
+            }
+            if label_map and real_name in label_map:
+                entry["label_id"] = label_map[real_name]
+                
+            systems_data.setdefault(system_name, []).append(entry)
 
     # Write MTL file
     with open(mtl_path, 'w', encoding='utf-8') as f_mtl:

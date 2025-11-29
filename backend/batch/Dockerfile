@@ -19,6 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     wget \
     ca-certificates \
+    libgl1 \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -45,7 +47,8 @@ RUN pip3 install --no-cache-dir TotalSegmentator==2.2.1
 
 # Install mesh processing libraries
 RUN pip3 install --no-cache-dir \
-    trimesh==3.23.5
+    trimesh==3.23.5 \
+    open3d==0.17.0
 
 # Install AWS SDK
 RUN pip3 install --no-cache-dir \

@@ -75,6 +75,38 @@ def update_job_status(status: str, message: str = None, error: str = None, artif
         print(f"[batch] Error updating DynamoDB: {e}")
 
 
+def create_combined_label_map(seg_dir: Path, output_path: Path) -> Dict[str, int]:
+    """Combines individual NIFTI masks into a single label map and returns name->id map"""
+    print("[batch] Creating combined label map...")
+    label_map = {}
+    try:
+        nii_files = sorted([p for p in seg_dir.glob('*.nii*')])
+        if not nii_files: return {}
+        
+        # Load reference image info
+        ref = nib.load(str(nii_files[0]))
+        combined = np.zeros(ref.shape, dtype=np.uint8)
+        affine = ref.affine
+        
+        for i, nii in enumerate(nii_files):
+             name = nii.name.replace('.nii.gz', '').replace('.nii', '')
+             label_id = i + 1
+             label_map[name] = label_id
+             
+             # Load mask data
+             data = nib.load(str(nii)).get_fdata()
+             combined[data > 0.5] = label_id
+             
+        # Save combined
+        new_img = nib.Nifti1Image(combined, affine)
+        nib.save(new_img, str(output_path))
+        print(f"[batch] Created combined label map with {len(label_map)} structures")
+        return label_map
+    except Exception as e:
+        print(f"[batch] Error creating label map: {e}")
+        return {}
+
+
 def main():
     """Main processing function"""
     print(f"[batch] Starting job {JOB_ID}")
@@ -122,6 +154,10 @@ def main():
             elapsed = time.time() - start_time
             print(f"[batch] TotalSegmentator completed in {elapsed:.1f}s")
             
+            # Create combined label map for 2D overlay
+            label_map_path = output_dir / 'segmentations.nii.gz'
+            label_map_dict = create_combined_label_map(seg_dir, label_map_path)
+
             # Convert segmentations to meshes
             print("[batch] Converting segmentations to 3D meshes...")
             nii_files = sorted([p for p in seg_dir.glob('*.nii*') if p.is_file()])
@@ -139,15 +175,7 @@ def main():
                     print(f"[batch] Skipping {name} (empty mesh)")
                     continue
                 
-                # Simplify mesh
-                if REDUCTION_PERCENT and REDUCTION_PERCENT > 0:
-                    tri_count = len(np.asarray(mesh.triangles))
-                    target_tri = max(100, int(tri_count * (1.0 - REDUCTION_PERCENT/100.0)))
-                    try:
-                        mesh = mesh.simplify_quadric_decimation(target_number_of_triangles=target_tri)
-                        print(f"[batch] Simplified {name}: {tri_count} -> {target_tri} triangles")
-                    except Exception as e:
-                        print(f"[batch] Decimation failed for {name}: {e}")
+                # Note: Decimation and smoothing are already handled inside mask_to_mesh -> clean_mesh
                 
                 meshes.append(mesh)
                 names.append(name)
@@ -156,11 +184,18 @@ def main():
                 raise ValueError("No valid meshes generated from segmentations")
             
             print(f"[batch] Exporting {len(meshes)} meshes to OBJ format...")
-            obj_path, mtl_path, json_path = export_obj_with_submeshes(meshes, names, output_dir)
+            obj_path, mtl_path, json_path = export_obj_with_submeshes(meshes, names, output_dir, label_map=label_map_dict)
             
-            # Create zip archive
+            # Create zip archive (using zipfile directly to support ZIP64)
+            import zipfile
             print("[batch] Creating zip archive...")
-            zip_path = shutil.make_archive(str(output_dir / 'result'), 'zip', root_dir=str(output_dir))
+            zip_path = output_dir / 'result.zip'
+            with zipfile.ZipFile(str(zip_path), 'w', zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
+                zf.write(obj_path, 'Result.obj')
+                zf.write(mtl_path, 'materials.mtl')
+                zf.write(json_path, 'Result.json')
+                if label_map_path.exists():
+                    zf.write(label_map_path, 'segmentations.nii.gz')
             
             # Upload results to S3
             print("[batch] Uploading results to S3...")
@@ -170,8 +205,11 @@ def main():
                 (obj_path, 'Result.obj'),
                 (mtl_path, 'materials.mtl'),
                 (json_path, 'Result.json'),
-                (zip_path, 'result.zip')
+                (zip_path, 'result.zip'),
+                (label_map_path, 'segmentations.nii.gz')
             ]:
+                if not local_path.exists(): continue
+
                 s3_key = f"{S3_OUTPUT_PREFIX}{artifact_name}"
                 file_size = Path(local_path).stat().st_size / 1024 / 1024
                 print(f"[batch] Uploading {artifact_name} ({file_size:.1f} MB)...")

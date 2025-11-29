@@ -159,8 +159,8 @@ Resources:
             }]
           }
 
-  # IAM Role for Batch compute environment
-  BatchInstanceRole:
+  # IAM Role for Batch Job (used by the container)
+  BatchJobRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -168,10 +168,8 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: ec2.amazonaws.com
+              Service: ecs-tasks.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
       Policies:
         - PolicyName: BatchS3Access
           PolicyDocument:
@@ -191,6 +189,20 @@ Resources:
                   - dynamodb:UpdateItem
                   - dynamodb:GetItem
                 Resource: !GetAtt MetadataTable.Arn
+
+  # IAM Role for Batch compute environment instance
+  BatchInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
 
   BatchInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -226,11 +238,24 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
+  # Launch Template for Batch instances (to increase disk size)
+  BatchLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: iris-batch-launch-template
+      LaunchTemplateData:
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 100
+              VolumeType: gp3
+              DeleteOnTermination: true
+
   # Batch Compute Environment (GPU Spot - g4dn.xlarge)
-  BatchGPUSpotComputeEnvironment:
+  BatchGPUSpotComputeEnvironmentV6:
     Type: AWS::Batch::ComputeEnvironment
     Properties:
-      ComputeEnvironmentName: iris-gpu-spot-compute-v5
+      ComputeEnvironmentName: iris-gpu-spot-compute-v6
       Type: MANAGED
       State: ENABLED
       ServiceRole: !GetAtt BatchServiceRole.Arn
@@ -243,6 +268,9 @@ Resources:
         DesiredvCpus: 0
         InstanceTypes:
           - g4dn.xlarge
+        LaunchTemplate:
+          LaunchTemplateId: !Ref BatchLaunchTemplate
+          Version: $Latest
         Subnets:
           - !Ref BatchSubnet
         SecurityGroupIds:
@@ -328,7 +356,7 @@ Resources:
       Priority: 1
       ComputeEnvironmentOrder:
         - Order: 1
-          ComputeEnvironment: !Ref BatchGPUSpotComputeEnvironment
+          ComputeEnvironment: !Ref BatchGPUSpotComputeEnvironmentV6
 
   # Batch Job Definition
   BatchJobDefinition:
@@ -346,8 +374,10 @@ Resources:
           - Type: GPU
             Value: '1'
         ExecutionRoleArn: !GetAtt BatchTaskExecutionRole.Arn
-        JobRoleArn: !GetAtt BatchInstanceRole.Arn
+        JobRoleArn: !GetAtt BatchJobRole.Arn
         Environment:
+          - Name: AWS_DEFAULT_REGION
+            Value: !Ref AWS::Region
           - Name: S3_BUCKET
             Value: !Ref DataBucket
           - Name: DYNAMODB_TABLE
