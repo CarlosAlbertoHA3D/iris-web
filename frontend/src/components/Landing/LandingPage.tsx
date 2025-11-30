@@ -3,9 +3,10 @@ import './LandingPage.css'
 
 interface LandingPageProps {
   onLogin: () => void
+  onVRLogin: () => void
 }
 
-export function LandingPage({ onLogin }: LandingPageProps) {
+export function LandingPage({ onLogin, onVRLogin }: LandingPageProps) {
   return (
     <div className="landing-page">
       {/* Hero Section */}
@@ -15,9 +16,14 @@ export function LandingPage({ onLogin }: LandingPageProps) {
             <Brain className="nav-logo" />
             <span>Iris Oculus</span>
           </div>
-          <button className="btn-login" onClick={onLogin}>
-            Sign In
-          </button>
+          <div className="nav-actions" style={{ display: 'flex', gap: '1rem' }}>
+            <button className="btn-secondary" onClick={onVRLogin} style={{ padding: '0.5rem 1rem' }}>
+              Login with Code
+            </button>
+            <button className="btn-login" onClick={onLogin}>
+              Sign In
+            </button>
+          </div>
         </nav>
 
         <div className="hero-section">

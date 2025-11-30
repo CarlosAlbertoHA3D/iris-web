@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Authenticator, useAuthenticator } from '@aws-amplify/ui-react'
+import { Routes, Route, useNavigate } from 'react-router-dom'
 import { useAppStore } from './store/useAppStore'
 import { LandingPage } from './components/Landing/LandingPage'
 import { Login } from './components/Auth/Login'
 import { Dashboard } from './components/Dashboard/Dashboard'
 import App from './App'
+import VRLogin from './components/VR/VRLogin'
+import VRDashboard from './components/VR/VRDashboard'
+import VRViewer from './components/VR/VRViewer'
 import './config/amplify'
 
 type View = 'dashboard' | 'viewer'
@@ -109,9 +113,10 @@ function AuthenticatedApp() {
   )
 }
 
-function AppRouter() {
+function MainAuthFlow() {
   const [showAuth, setShowAuth] = useState(false)
   const { authStatus } = useAuthenticator((context) => [context.authStatus])
+  const navigate = useNavigate()
 
   // If user is authenticated, show the app
   if (authStatus === 'authenticated') {
@@ -128,7 +133,18 @@ function AppRouter() {
   }
 
   // Otherwise show landing page
-  return <LandingPage onLogin={() => setShowAuth(true)} />
+  return <LandingPage onLogin={() => setShowAuth(true)} onVRLogin={() => navigate('/vr-login')} />
+}
+
+function AppRouter() {
+  return (
+    <Routes>
+      <Route path="/vr-login" element={<VRLogin />} />
+      <Route path="/vr-dashboard" element={<VRDashboard />} />
+      <Route path="/vr-viewer/:jobId" element={<VRViewer />} />
+      <Route path="/*" element={<MainAuthFlow />} />
+    </Routes>
+  )
 }
 
 export default function AppWithAuth() {

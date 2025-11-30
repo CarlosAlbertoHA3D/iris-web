@@ -143,36 +143,27 @@ def get_color_for_subobject(obj_name_original: str) -> Tuple[int, int, int]:
     return (200, 200, 200)
 
 
-def smooth_mesh(mesh: trimesh.Trimesh, iterations: int = 8):
+def smooth_mesh(mesh: trimesh.Trimesh, iterations: int = 10):
     """
     Smooth mesh to remove cubic/blocky appearance from segmentation
-    Uses Laplacian smoothing to make surfaces more natural
+    Uses trimesh's Laplacian smoothing which is much faster than manual iteration
     """
     try:
-        # Use trimesh's built-in smoothing if available (filter_laplacian)
-        # But our implementation is fine too. Let's use ours but with more iterations.
-        
-        # Apply Laplacian smoothing
-        for _ in range(iterations):
-            # Get vertex neighbors
-            vertex_neighbors = mesh.vertex_neighbors
-            
-            # For each vertex, move it towards the average position of neighbors
-            new_vertices = np.array(mesh.vertices)
-            for i, neighbors in enumerate(vertex_neighbors):
-                if len(neighbors) > 0:
-                    neighbor_positions = mesh.vertices[neighbors]
-                    average_position = np.mean(neighbor_positions, axis=0)
-                    # Blend with current position (0.5 = 50% smoothing)
-                    new_vertices[i] = 0.5 * mesh.vertices[i] + 0.5 * average_position
-            
-            mesh.vertices = new_vertices
+        # Use trimesh's built-in smoothing
+        # filter_laplacian returns the mesh, but modifies in place if specified?
+        # Checking docs: trimesh.smoothing.filter_laplacian(mesh, lamb=0.5, iterations=10)
+        trimesh.smoothing.filter_laplacian(mesh, lamb=0.5, iterations=iterations)
         
         # Recalculate normals after smoothing
         mesh.fix_normals()
-        print(f"[smooth_mesh] Applied {iterations} iterations of smoothing")
+        print(f"[smooth_mesh] Applied {iterations} iterations of Laplacian smoothing")
     except Exception as e:
-        print(f"[smooth_mesh] warning: {e}")
+        print(f"[smooth_mesh] warning: {e}, falling back to simple smoothing")
+        try:
+             # Fallback if filter_laplacian is not available in this version
+             trimesh.smoothing.filter_humphrey(mesh)
+        except:
+             pass
 
 
 def decimate_mesh(mesh: trimesh.Trimesh, target_percent: float = 0.5):
@@ -213,8 +204,8 @@ def clean_mesh(mesh: trimesh.Trimesh, smooth: bool = True, decimate: bool = True
         
         # Apply smoothing to remove blocky appearance
         if smooth:
-            # Increased iterations for smoother look (was 3)
-            smooth_mesh(mesh, iterations=20)
+            # Increased iterations for smoother look (optimized filter)
+            smooth_mesh(mesh, iterations=15)
         
         # Optionally reduce polygon count for web performance
         # Aggressive decimation to reduce file size (target 20% of original faces)

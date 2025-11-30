@@ -6,7 +6,11 @@ import { Slider } from './ui/slider'
 import { useAppStore } from '../store/useAppStore'
 import StructuresList from './StructuresList'
 
-export default function SidePanel() {
+interface SidePanelProps {
+  hideProcessAI?: boolean
+}
+
+export default function SidePanel({ hideProcessAI = false }: SidePanelProps) {
   const job = useAppStore(s => s.job)
   const startProcessing = useAppStore(s => s.startProcessing)
   const studyId = useAppStore(s => s.studyId)
@@ -26,7 +30,7 @@ export default function SidePanel() {
       <section>
         <div className="font-medium mb-2">Study</div>
         <div className="text-sm text-muted-foreground">ID: {studyId ?? '—'}</div>
-        {hasFiles && !isProcessing && (
+        {hasFiles && !isProcessing && !hideProcessAI && (
           <div className="mt-2">
             <Button className="w-full" onClick={startProcessing}><Play className="w-4 h-4 mr-1"/>Process with AI</Button>
           </div>

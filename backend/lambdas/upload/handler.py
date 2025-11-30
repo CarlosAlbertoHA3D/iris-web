@@ -5,8 +5,9 @@ import base64
 import time
 from datetime import datetime
 import boto3
+from botocore.config import Config
 
-s3 = boto3.client('s3')
+s3 = boto3.client('s3', config=Config(s3={'use_accelerate_endpoint': True}))
 dynamodb = boto3.resource('dynamodb')
 
 S3_BUCKET = os.environ['S3_BUCKET']

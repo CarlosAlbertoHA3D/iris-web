@@ -13,10 +13,11 @@ import { useAppStore } from './store/useAppStore'
 
 interface AppProps {
   isIntegrated?: boolean
+  hideUploads?: boolean
   onBackToDashboard?: () => void
 }
 
-export default function App({ isIntegrated = false, onBackToDashboard }: AppProps) {
+export default function App({ isIntegrated = false, hideUploads = false, onBackToDashboard }: AppProps) {
   const theme = useAppStore(s => s.theme)
   const toggleTheme = useAppStore(s => s.toggleTheme)
   const job = useAppStore(s => s.job)
@@ -73,12 +74,16 @@ export default function App({ isIntegrated = false, onBackToDashboard }: AppProp
 
       <div className="flex-1 mx-auto max-w-[1600px] w-full flex">
         <main className="flex-1 p-4">
-          <div className="mb-3">
-            <UploadDropzone />
-          </div>
-          <div className="mb-4">
-            <UploadsList />
-          </div>
+          {!hideUploads && (
+            <>
+              <div className="mb-3">
+                <UploadDropzone />
+              </div>
+              <div className="mb-4">
+                <UploadsList />
+              </div>
+            </>
+          )}
           {/* Viewer Grid Container */}
           <div className="relative h-[calc(100vh-130px)] w-full bg-background rounded-lg overflow-hidden border grid grid-cols-2 grid-rows-2 gap-1 p-1">
             
@@ -140,6 +145,7 @@ export default function App({ isIntegrated = false, onBackToDashboard }: AppProp
             </div>
 
             {/* 3D Panel */}
+            {!hideUploads && (
             <div className={`
                 flex flex-col bg-card border rounded-md overflow-hidden transition-all duration-300 ease-in-out
                 ${fullscreenPane === '3d' 
@@ -163,11 +169,12 @@ export default function App({ isIntegrated = false, onBackToDashboard }: AppProp
                 <ThreeDViewer tall={!!fullscreenPane} />
               </div>
             </div>
+            )}
 
           </div>
         </main>
         <aside className="w-[320px] border-l p-4 bg-background/40">
-          <SidePanel />
+          <SidePanel hideProcessAI={hideUploads} />
         </aside>
       </div>
 

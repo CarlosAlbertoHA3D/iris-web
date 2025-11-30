@@ -38,6 +38,8 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub 'iris-oculus-data-${AWS::AccountId}'
+      AccelerateConfiguration:
+        AccelerationStatus: Enabled
       CorsConfiguration:
         CorsRules:
           - AllowedOrigins:
@@ -135,6 +137,22 @@ Resources:
             ProjectionType: ALL
       TimeToLiveSpecification:
         AttributeName: ttl
+        Enabled: true
+
+  # DynamoDB Table for VR Sync Codes
+  VRCodesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: iris-oculus-vr-codes
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: code
+          AttributeType: S
+      KeySchema:
+        - AttributeName: code
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
         Enabled: true
 
   # ECR Repository for Batch Docker image
@@ -559,6 +577,58 @@ Resources:
           Properties:
             Path: /studies/{jobId}/status
             Method: OPTIONS
+
+  # Lambda Function for generating VR sync code
+  GenerateVRCodeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: iris-vr-generate-code
+      CodeUri: lambdas/vr-generate-code/
+      Handler: handler.lambda_handler
+      Environment:
+        Variables:
+          VR_CODES_TABLE: !Ref VRCodesTable
+      Layers:
+        - !Ref DependenciesLayer
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref VRCodesTable
+      Events:
+        GenerateCode:
+          Type: Api
+          Properties:
+            Path: /vr/code
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+  # Lambda Function for retrieving studies via VR code
+  GetVRStudiesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: iris-vr-get-studies
+      CodeUri: lambdas/vr-get-studies/
+      Handler: handler.lambda_handler
+      Environment:
+        Variables:
+          VR_CODES_TABLE: !Ref VRCodesTable
+          METADATA_TABLE: !Ref MetadataTable
+          S3_BUCKET: !Ref DataBucket
+      Layers:
+        - !Ref DependenciesLayer
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref VRCodesTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref MetadataTable
+        - S3ReadPolicy:
+            BucketName: !Ref DataBucket
+      Events:
+        GetVRStudies:
+          Type: Api
+          Properties:
+            Path: /vr/studies
+            Method: GET
 
   # Lambda Function to get job status
   GetJobStatusFunction:

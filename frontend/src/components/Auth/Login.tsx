@@ -5,9 +5,10 @@ import '../../config/amplify'
 
 interface LoginProps {
   children: React.ReactNode
+  onVRLogin?: () => void
 }
 
-export function Login({ children }: LoginProps) {
+export function Login({ children, onVRLogin }: LoginProps) {
   return (
     <div className="auth-container">
       <Authenticator
@@ -50,6 +51,25 @@ export function Login({ children }: LoginProps) {
       >
         {children}
       </Authenticator>
+      
+      {onVRLogin && (
+        <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+          <button 
+            className="btn-secondary" 
+            onClick={onVRLogin}
+            style={{ 
+              background: 'transparent', 
+              border: '1px solid rgba(255,255,255,0.2)',
+              color: 'white',
+              padding: '0.5rem 1rem',
+              borderRadius: '0.25rem',
+              cursor: 'pointer'
+            }}
+          >
+            Login with VR Code
+          </button>
+        </div>
+      )}
     </div>
   )
 }

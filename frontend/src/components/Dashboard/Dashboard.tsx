@@ -351,11 +351,11 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
         <div className="modal-overlay" onClick={() => setVrCode(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Sincronizar con Meta Quest 3</h2>
+              <h2>Sync with Meta Quest 3</h2>
               <button onClick={() => setVrCode(null)}>✕</button>
             </div>
             <div className="modal-body">
-              <p className="text-center mb-4">Ingresa este código en tu Meta Quest 3 para acceder a tus estudios.</p>
+              <p className="text-center mb-4">Enter this code on your Meta Quest 3 to access your studies.</p>
               <div className="flex items-center justify-center gap-4 mb-6">
                 <div className="text-5xl font-mono font-bold tracking-widest bg-muted p-4 rounded">
                   {vrCode.code}
@@ -367,14 +367,14 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
                   className="btn-secondary flex items-center gap-2"
                 >
                   {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  {copied ? 'Copiado' : 'Copiar Código'}
+                  {copied ? 'Copied' : 'Copy Code'}
                 </button>
               </div>
               <p className="text-sm text-muted-foreground text-center">
-                Este código es válido por 24 horas.
+                This code is valid for 24 hours.
               </p>
               <p className="text-xs text-muted-foreground text-center mt-2">
-                Expira: {new Date(vrCode.expiresAt * 1000).toLocaleString()}
+                Expires: {new Date(vrCode.expiresAt * 1000).toLocaleString()}
               </p>
             </div>
           </div>

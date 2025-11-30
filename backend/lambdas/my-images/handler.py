@@ -1,10 +1,11 @@
 import json
 import os
 import boto3
+from botocore.config import Config
 from decimal import Decimal
 
 dynamodb = boto3.resource('dynamodb')
-s3 = boto3.client('s3')
+s3 = boto3.client('s3', config=Config(s3={'use_accelerate_endpoint': True}))
 
 DYNAMODB_TABLE = os.environ['DYNAMODB_TABLE']
 S3_BUCKET = os.environ['S3_BUCKET']
@@ -78,11 +79,18 @@ def lambda_handler(event, context):
                     img['downloadUrl'] = None
             
             # If job is completed, generate presigned URLs for 3D artifacts
-            if img.get('status') == 'completed' and 'expectedArtifacts' in img:
+            if img.get('status') == 'completed':
+                artifacts_source = {}
+                # Merge expectedArtifacts and actual artifacts, preferring actual
+                if 'expectedArtifacts' in img:
+                    artifacts_source.update(img['expectedArtifacts'])
+                if 'artifacts' in img:
+                    artifacts_source.update(img['artifacts'])
+                
                 artifacts_urls = {}
-                for artifact_type, s3_path in img['expectedArtifacts'].items():
+                for artifact_type, s3_path in artifacts_source.items():
                     # Extract S3 key from s3://bucket/key format
-                    if s3_path.startswith('s3://'):
+                    if isinstance(s3_path, str) and s3_path.startswith('s3://'):
                         # Remove s3://bucket/ prefix
                         s3_key = '/'.join(s3_path.split('/')[3:])
                         try:

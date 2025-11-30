@@ -2,11 +2,12 @@ import json
 import os
 import time
 import boto3
+from botocore.config import Config
 from decimal import Decimal
 
 
 dynamodb = boto3.resource('dynamodb')
-s3 = boto3.client('s3')
+s3 = boto3.client('s3', config=Config(s3={'use_accelerate_endpoint': True}))
 batch_client = boto3.client('batch')
 
 DYNAMODB_TABLE = os.environ['DYNAMODB_TABLE']
@@ -34,11 +35,17 @@ def _with_cors(response):
 
 def _build_artifact_urls(item):
     expected = item.get('expectedArtifacts') or {}
-    if not expected:
+    actual = item.get('artifacts') or {}
+    
+    # Merge, preferring actual
+    artifacts_source = expected.copy()
+    artifacts_source.update(actual)
+    
+    if not artifacts_source:
         return {}
 
     urls = {}
-    for artifact_type, s3_path in expected.items():
+    for artifact_type, s3_path in artifacts_source.items():
         if not isinstance(s3_path, str) or not s3_path.startswith('s3://'):
             continue
         parts = s3_path.replace('s3://', '').split('/', 1)
