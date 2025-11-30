@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { fetchAuthSession, signOut } from 'aws-amplify/auth'
-import { Upload, Eye, Download, LogOut, Trash2 } from 'lucide-react'
+import { Upload, Eye, Download, LogOut, Trash2, Smartphone, Copy, Check } from 'lucide-react'
 import { ProcessingStatus } from '../ProcessingStatus'
 import './Dashboard.css'
 
@@ -11,11 +11,22 @@ interface Image {
   createdAt: number
   downloadUrl?: string
   inputFile: string
+  expectedArtifacts?: { [key: string]: string }
+  artifacts?: { [key: string]: string }
+  artifactUrls?: {
+    segmentation?: string
+    segmentations?: string
+    obj?: string
+    mtl?: string
+    json?: string
+    zip?: string
+    [key: string]: string | undefined
+  }
 }
 
 interface DashboardProps {
   onUploadNewStudy: () => void
-  onViewStudy?: (studyUrl: string, jobId: string, filename: string) => void
+  onViewStudy?: (studyUrl: string, jobId: string, filename: string, artifacts?: any) => void
 }
 
 export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
@@ -24,12 +35,17 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
   const [selectedImage, setSelectedImage] = useState<Image | null>(null)
   const [imageToDelete, setImageToDelete] = useState<Image | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [vrCode, setVrCode] = useState<{ code: string, expiresAt: number } | null>(null)
+  const [generatingCode, setGeneratingCode] = useState(false)
+  const [copied, setCopied] = useState(false)
   const pollingIntervalRef = useRef<number | null>(null)
 
   useEffect(() => {
-    loadImages()
+    const controller = new AbortController()
+    loadImages(controller.signal)
     
     return () => {
+      controller.abort()
       // Cleanup polling on unmount
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current)
@@ -48,7 +64,7 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
       console.log('[Dashboard] Starting polling for processing jobs')
       pollingIntervalRef.current = window.setInterval(() => {
         console.log('[Dashboard] Polling for status updates')
-        loadImages()
+        loadImages(undefined, true)
       }, 30000) // 30 seconds
     } else if (!hasProcessingJobs && pollingIntervalRef.current) {
       // Stop polling when no processing jobs
@@ -65,9 +81,9 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
     }
   }, [images])
 
-  async function loadImages() {
+  async function loadImages(signal?: AbortSignal, isPolling = false) {
     try {
-      setLoading(true)
+      if (!isPolling) setLoading(true)
       const session = await fetchAuthSession()
       const token = session.tokens?.idToken?.toString()
       const userId = session.tokens?.idToken?.payload?.sub
@@ -77,6 +93,7 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
       const response = await fetch(
         `${import.meta.env.VITE_BACKEND_URL}/my-images`,
         {
+          signal,
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -100,11 +117,17 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
         }))
       })
       setImages(data.images || [])
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log('[Dashboard] Request aborted')
+        return
+      }
       console.error('[Dashboard] Error loading images:', error)
-      alert(`Failed to load studies: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      if (!isPolling) {
+          alert(`Failed to load studies: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
     } finally {
-      setLoading(false)
+      if (!isPolling) setLoading(false)
     }
   }
 
@@ -153,6 +176,42 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
     }
   }
 
+  async function generateVRCode() {
+    try {
+      setGeneratingCode(true)
+      const session = await fetchAuthSession()
+      const token = session.tokens?.idToken?.toString()
+
+      const response = await fetch(
+        `${import.meta.env.VITE_BACKEND_URL}/vr/code`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`)
+      }
+
+      const data = await response.json()
+      setVrCode(data)
+    } catch (error) {
+      console.error('Error generating VR code:', error)
+      alert('Failed to generate VR code. Please try again.')
+    } finally {
+      setGeneratingCode(false)
+    }
+  }
+
+  function copyToClipboard(text: string) {
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   function getStatusColor(status: string) {
     switch (status) {
       case 'completed':
@@ -197,6 +256,10 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
       <div className="dashboard-header">
         <h1>My Studies</h1>
         <div className="header-actions">
+          <button onClick={generateVRCode} className="btn-secondary" disabled={generatingCode}>
+            <Smartphone className="btn-icon" />
+            {generatingCode ? 'Generating...' : 'Sincronizar con VR'}
+          </button>
           <button onClick={onUploadNewStudy} className="btn-upload">
             <Upload className="btn-icon" />
             Upload New Study
@@ -257,7 +320,8 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
                   onClick={(e) => {
                     e.stopPropagation()
                     if (onViewStudy && img.downloadUrl) {
-                      onViewStudy(img.downloadUrl, img.jobId, img.filename)
+                      // Prefer artifactUrls (signed), fallback to expectedArtifacts (s3:// - useless for frontend fetch but kept for metadata)
+                      onViewStudy(img.downloadUrl, img.jobId, img.filename, img.artifactUrls || img.expectedArtifacts)
                     } else {
                       setSelectedImage(img)
                     }
@@ -279,6 +343,41 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* VR Code Modal */}
+      {vrCode && (
+        <div className="modal-overlay" onClick={() => setVrCode(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Sincronizar con Meta Quest 3</h2>
+              <button onClick={() => setVrCode(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <p className="text-center mb-4">Ingresa este código en tu Meta Quest 3 para acceder a tus estudios.</p>
+              <div className="flex items-center justify-center gap-4 mb-6">
+                <div className="text-5xl font-mono font-bold tracking-widest bg-muted p-4 rounded">
+                  {vrCode.code}
+                </div>
+              </div>
+              <div className="flex justify-center gap-4 mb-4">
+                <button 
+                  onClick={() => copyToClipboard(vrCode.code)}
+                  className="btn-secondary flex items-center gap-2"
+                >
+                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {copied ? 'Copiado' : 'Copiar Código'}
+                </button>
+              </div>
+              <p className="text-sm text-muted-foreground text-center">
+                Este código es válido por 24 horas.
+              </p>
+              <p className="text-xs text-muted-foreground text-center mt-2">
+                Expira: {new Date(vrCode.expiresAt * 1000).toLocaleString()}
+              </p>
+            </div>
+          </div>
         </div>
       )}
 

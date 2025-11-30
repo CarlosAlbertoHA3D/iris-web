@@ -37,6 +37,7 @@ export interface StructureItem {
   id: string
   name: string
   system: string
+  labelId?: number
   color: [number, number, number] // 0..255 RGB
   visible: boolean
   opacity: number // 0..100
@@ -52,7 +53,7 @@ interface AppState {
   lastLocalFiles: File[]
   layout: { fullscreenPane: Pane | null }
   structures: StructureItem[]
-  artifacts?: { obj: string; mtl: string; json: string; zip: string }
+  artifacts?: { obj: string; mtl: string; json: string; zip: string; segmentation?: string }
   jobPollTimer?: number
   queueFiles: (files: File[]) => void
   removeUpload: (id: string) => void
@@ -120,6 +121,7 @@ const buildStructuresFromSystems = (systems: any): StructureItem[] => {
           id: `${system}__${it.object_name}`,
           name: it.object_name,
           system,
+          labelId: it.label_id,
           color: Array.isArray(it.color) && it.color.length === 3 ? [it.color[0], it.color[1], it.color[2]] : [200, 200, 200],
           visible: true,
           opacity: 100,
@@ -198,7 +200,21 @@ const creator: StateCreator<AppState> = (set, get) => ({
       if (res?.image) {
         // eslint-disable-next-line no-console
         console.log('[store] loadLocalFiles -> image ready size=', res.image?.size)
-        set({ currentImage: res.image, lastLocalFiles: files })
+        
+        // Center views by default
+        const [x, y, z] = res.image.size
+        const newState = {
+            currentImage: res.image,
+            lastLocalFiles: files,
+            viewer: {
+                ...get().viewer,
+                // ITK images are (x, y, z). Axial slices along Z, Coronal along Y, Sagittal along X
+                axialIndex: Math.floor(z / 2),
+                coronalIndex: Math.floor(y / 2),
+                sagittalIndex: Math.floor(x / 2)
+            }
+        }
+        set(newState)
       } else {
         // eslint-disable-next-line no-console
         console.warn('[store] loadLocalFiles -> no image returned')
@@ -427,9 +443,9 @@ const creator: StateCreator<AppState> = (set, get) => ({
       const jobPayload = data?.job || {}
       const status = normalizeStatus(jobPayload.status)
 
-      // If job is active, restore state and start monitoring
-      if (status === 'queued' || status === 'processing') {
-        console.log('[restore] Restoring active job state:', status)
+      // If job is active OR completed, restore state and ensure artifacts are loaded
+      if (status === 'queued' || status === 'processing' || status === 'completed') {
+        console.log('[restore] Restoring job state:', status)
         set((s) => ({
           job: {
             id: studyId,
@@ -494,6 +510,7 @@ const creator: StateCreator<AppState> = (set, get) => ({
             mtl: artifactUrls.mtl || s.artifacts?.mtl || '',
             json: artifactUrls.json || s.artifacts?.json || '',
             zip: artifactUrls.zip || s.artifacts?.zip || '',
+            segmentation: artifactUrls.segmentations || s.artifacts?.segmentation || '',
           } : s.artifacts,
         }))
 

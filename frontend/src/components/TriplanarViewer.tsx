@@ -1,8 +1,23 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { loadImageFromFiles } from '../services/itkLoader'
 
 export type Plane = 'sagittal' | 'coronal' | 'axial'
+
+import { X, Eye, EyeOff } from 'lucide-react'
+import { Slider } from './ui/slider'
+
+function rgbToHex([r, g, b]: [number, number, number]) {
+  return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const clean = hex.replace('#', '')
+  const r = parseInt(clean.slice(0, 2), 16)
+  const g = parseInt(clean.slice(2, 4), 16)
+  const b = parseInt(clean.slice(4, 6), 16)
+  return [r, g, b]
+}
 
 export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: boolean }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -13,8 +28,13 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
   
   // Segmentation state
   const artifacts = useAppStore(s => s.artifacts)
+  const structures = useAppStore(s => s.structures)
+  const setVisible = useAppStore(s => s.setStructureVisible)
+  const setOpacity = useAppStore(s => s.setStructureOpacity)
+  const setColor = useAppStore(s => s.setStructureColor)
   const [labelImage, setLabelImage] = useState<any>(null)
-  const [showLabel, setShowLabel] = useState(true)
+  const [showLabel, setShowLabel] = useState(false)
+  const [selectedLabel, setSelectedLabel] = useState<{ id: number, x: number, y: number } | null>(null)
 
   const crosshair = useAppStore(s => s.viewer.crosshair)
   const ww = useAppStore(s => s.viewer.ww)
@@ -33,6 +53,23 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
   const panX = useAppStore(s => s.viewer.panX)
   const panY = useAppStore(s => s.viewer.panY)
   const initWWWL = useRef(false)
+
+  // Compute color map for segmentation labels
+  const colorMap = useMemo(() => {
+    const map = new Map<number, {r: number, g: number, b: number, visible: boolean, opacity: number}>()
+    structures.forEach(s => {
+        if (typeof s.labelId === 'number') {
+            map.set(s.labelId, {
+                r: s.color[0],
+                g: s.color[1],
+                b: s.color[2],
+                visible: s.visible,
+                opacity: s.opacity
+            })
+        }
+    })
+    return map
+  }, [structures])
 
   // Download segmentation mask if available
   useEffect(() => {
@@ -60,12 +97,26 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
     const v = viewer.current
     if (!v) return
     
-    if (typeof v.setLabelImage === 'function') {
-        if (labelImage && showLabel) {
-            v.setLabelImage(labelImage)
-        } else {
-            v.setLabelImage(null)
+    try {
+        if (typeof v.setLabelImage === 'function') {
+            if (labelImage && showLabel) {
+                console.log(`[viewer] Setting label image...`)
+                v.setLabelImage(labelImage)
+                
+                // Force blend mode to ensure visibility
+                if (typeof v.setLabelImageBlend === 'function') {
+                    v.setLabelImageBlend(0.5)
+                }
+                // Ensure weights if applicable
+                if (typeof v.setLabelImageWeights === 'function') {
+                    v.setLabelImageWeights(0.5)
+                }
+            } else {
+                v.setLabelImage(null)
+            }
         }
+    } catch (e) {
+        console.warn('[viewer] Error setting label image:', e)
     }
   }, [labelImage, showLabel, viewerReadyTick, currentImage])
 
@@ -353,6 +404,11 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
     if (!img || !img.data || !Array.isArray(img.size)) return
     const [sx, sy, sz] = img.size as number[]
     const data: Float32Array = img.data as Float32Array
+    
+    // Label data
+    const lbl = (showLabel && labelImage) ? labelImage : null
+    const lblData = lbl ? (lbl.data as Float32Array | Uint8Array | Int16Array) : null
+    
     const canvas = canvasRef.current
     const container = containerRef.current
     if (!canvas || !container) return
@@ -360,6 +416,8 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
       let w = 0, h = 0
       const zStride = sx * sy
       const pick = (x: number, y: number, z: number) => data[x + y * sx + z * zStride]
+      const pickLbl = (x: number, y: number, z: number) => lblData ? lblData[x + y * sx + z * zStride] : 0
+      
       let zIndex = Math.max(0, Math.min(sz - 1, (plane === 'axial' ? useAppStore.getState().viewer.axialIndex : plane === 'coronal' ? useAppStore.getState().viewer.coronalIndex : useAppStore.getState().viewer.sagittalIndex)))
       if (plane === 'axial') { w = sx; h = sy }
       if (plane === 'coronal') { w = sx; h = sz }
@@ -379,12 +437,39 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
       if (plane === 'axial') {
         for (let y = 0; y < h; y++) {
           for (let x = 0; x < w; x++) {
-            const v = pick(x, (sy - 1 - y), zIndex)
+            // Invert Y for display usually? Code says (sy - 1 - y)
+            const yy = sy - 1 - y
+            const v = pick(x, yy, zIndex)
+            const l = pickLbl(x, yy, zIndex)
+            
             const g = Math.round(clamp01(v) * 255)
             const off = (y * w + x) * 4
-            imageData.data[off + 0] = g
-            imageData.data[off + 1] = g
-            imageData.data[off + 2] = g
+            
+            let rOut = g, gOut = g, bOut = g
+            
+            if (l > 0) {
+                const c = colorMap.get(l)
+                // Use structure color if available, otherwise fallback to red
+                // Also respect structure visibility
+                if (c) {
+                    if (c.visible) {
+                        const alpha = Math.max(0.1, c.opacity / 100) * 0.5 // Base opacity 0.5 * structure opacity
+                        rOut = g * (1 - alpha) + c.r * alpha
+                        gOut = g * (1 - alpha) + c.g * alpha
+                        bOut = g * (1 - alpha) + c.b * alpha
+                    }
+                } else {
+                    // Fallback red
+                    const alpha = 0.5
+                    rOut = g * (1 - alpha) + 255 * alpha
+                    gOut = g * (1 - alpha) + 0 * alpha
+                    bOut = g * (1 - alpha) + 0 * alpha
+                }
+            }
+            
+            imageData.data[off + 0] = rOut
+            imageData.data[off + 1] = gOut
+            imageData.data[off + 2] = bOut
             imageData.data[off + 3] = 255
           }
         }
@@ -392,12 +477,35 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
         const yIndex = Math.max(0, Math.min(sy - 1, useAppStore.getState().viewer.coronalIndex))
         for (let z = 0; z < h; z++) {
           for (let x = 0; x < w; x++) {
-            const v = pick(x, yIndex, (sz - 1 - z))
+            const zz = sz - 1 - z
+            const v = pick(x, yIndex, zz)
+            const l = pickLbl(x, yIndex, zz)
+            
             const g = Math.round(clamp01(v) * 255)
             const off = (z * w + x) * 4
-            imageData.data[off + 0] = g
-            imageData.data[off + 1] = g
-            imageData.data[off + 2] = g
+            
+            let rOut = g, gOut = g, bOut = g
+            
+            if (l > 0) {
+                const c = colorMap.get(l)
+                if (c) {
+                    if (c.visible) {
+                        const alpha = Math.max(0.1, c.opacity / 100) * 0.5
+                        rOut = g * (1 - alpha) + c.r * alpha
+                        gOut = g * (1 - alpha) + c.g * alpha
+                        bOut = g * (1 - alpha) + c.b * alpha
+                    }
+                } else {
+                    const alpha = 0.5
+                    rOut = g * (1 - alpha) + 255 * alpha
+                    gOut = g * (1 - alpha) + 0 * alpha
+                    bOut = g * (1 - alpha) + 0 * alpha
+                }
+            }
+            
+            imageData.data[off + 0] = rOut
+            imageData.data[off + 1] = gOut
+            imageData.data[off + 2] = bOut
             imageData.data[off + 3] = 255
           }
         }
@@ -405,12 +513,35 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
         const xIndex = Math.max(0, Math.min(sx - 1, useAppStore.getState().viewer.sagittalIndex))
         for (let z = 0; z < h; z++) {
           for (let y = 0; y < w; y++) {
-            const v = pick(xIndex, y, (sz - 1 - z))
+            const zz = sz - 1 - z
+            const v = pick(xIndex, y, zz)
+            const l = pickLbl(xIndex, y, zz)
+            
             const g = Math.round(clamp01(v) * 255)
             const off = (z * w + y) * 4
-            imageData.data[off + 0] = g
-            imageData.data[off + 1] = g
-            imageData.data[off + 2] = g
+            
+            let rOut = g, gOut = g, bOut = g
+            
+            if (l > 0) {
+                const c = colorMap.get(l)
+                if (c) {
+                    if (c.visible) {
+                        const alpha = Math.max(0.1, c.opacity / 100) * 0.5
+                        rOut = g * (1 - alpha) + c.r * alpha
+                        gOut = g * (1 - alpha) + c.g * alpha
+                        bOut = g * (1 - alpha) + c.b * alpha
+                    }
+                } else {
+                    const alpha = 0.5
+                    rOut = g * (1 - alpha) + 255 * alpha
+                    gOut = g * (1 - alpha) + 0 * alpha
+                    bOut = g * (1 - alpha) + 0 * alpha
+                }
+            }
+            
+            imageData.data[off + 0] = rOut
+            imageData.data[off + 1] = gOut
+            imageData.data[off + 2] = bOut
             imageData.data[off + 3] = 255
           }
         }
@@ -448,7 +579,7 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
       ctx.drawImage(off, dx, dy, dw, dh)
     }
     toSlice()
-  }, [fallbackActive, currentImage, axialIndex, coronalIndex, sagittalIndex, wl, ww])
+  }, [fallbackActive, currentImage, axialIndex, coronalIndex, sagittalIndex, wl, ww, labelImage, showLabel, colorMap])
 
   // Slice sync (store -> viewer)
   useEffect(() => {
@@ -626,8 +757,168 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
 
   const showOverlay = !currentImage
   try { console.log(`[viewer:${plane}] showOverlay=${showOverlay} hasImage=${!!currentImage} hasViewer=${!!viewer.current}`) } catch {}
+  const handleCanvasClick = (e: React.MouseEvent) => {
+    if (!labelImage || !showLabel || !currentImage) return
+
+    const canvas = canvasRef.current
+    const container = containerRef.current
+    if (!canvas || !container) return
+
+    const rect = container.getBoundingClientRect()
+    const img: any = currentImage
+    const [sx, sy, sz] = img.size as number[]
+    
+    // Reconstruct view params (same as render logic)
+    let w = 0, h = 0
+    if (plane === 'axial') { w = sx; h = sy }
+    if (plane === 'coronal') { w = sx; h = sz }
+    if (plane === 'sagittal') { w = sy; h = sz }
+    
+    const cw = rect.width
+    const ch = rect.height
+    const scale = Math.min(cw / w, ch / h)
+    const dw = w * scale
+    const dh = h * scale
+    const dx = (cw - dw) / 2
+    const dy = (ch - dh) / 2
+    
+    // Mouse relative to container
+    const mx = e.clientX - rect.left
+    const my = e.clientY - rect.top
+    
+    // Map to image coords
+    const ix = Math.floor((mx - dx) / scale)
+    const iy = Math.floor((my - dy) / scale)
+    
+    if (ix < 0 || ix >= w || iy < 0 || iy >= h) {
+        setSelectedLabel(null)
+        return
+    }
+    
+    // Map to 3D coords
+    let x = 0, y = 0, z = 0
+    const zIndex = Math.max(0, Math.min(sz - 1, (plane === 'axial' ? useAppStore.getState().viewer.axialIndex : plane === 'coronal' ? useAppStore.getState().viewer.coronalIndex : useAppStore.getState().viewer.sagittalIndex)))
+    
+    if (plane === 'axial') {
+        // axial: x=ix, y=(sy - 1 - iy), z=zIndex
+        x = ix
+        y = sy - 1 - iy
+        z = zIndex
+    } else if (plane === 'coronal') {
+        // coronal: x=ix, y=yIndex, z=(sz - 1 - iy)
+        const yIndex = Math.max(0, Math.min(sy - 1, useAppStore.getState().viewer.coronalIndex))
+        x = ix
+        y = yIndex
+        z = sz - 1 - iy
+    } else {
+        // sagittal: x=xIndex, y=ix, z=(sz - 1 - iy)
+        const xIndex = Math.max(0, Math.min(sx - 1, useAppStore.getState().viewer.sagittalIndex))
+        x = xIndex
+        y = ix
+        z = sz - 1 - iy
+    }
+    
+    // Look up label value
+    const lblData = labelImage.data as Float32Array | Uint8Array | Int16Array
+    const zStride = sx * sy
+    const idx = x + y * sx + z * zStride
+    const val = lblData[idx]
+    
+    if (val > 0) {
+        setSelectedLabel({ id: val, x: e.clientX, y: e.clientY })
+    } else {
+        setSelectedLabel(null)
+    }
+  }
+
+  const selectedStructure = selectedLabel ? structures.find(s => s.labelId === selectedLabel.id) : null
+
   return (
-    <div ref={containerRef} className={`relative ${tall ? 'h-[70vh]' : 'h-[320px]'} bg-black/70 rounded-md overflow-hidden`}>
+    <div ref={containerRef} onClick={handleCanvasClick} className={`relative ${tall ? 'h-[70vh]' : 'h-[320px]'} bg-black/70 rounded-md overflow-hidden cursor-crosshair`}>
+      {/* Selection Tooltip */}
+      {selectedLabel && selectedStructure && (
+        <div 
+            className="absolute z-20 p-3 bg-black/90 rounded-md border border-white/20 shadow-xl backdrop-blur-sm text-white w-64 max-h-[60vh] overflow-y-auto overflow-x-hidden"
+            style={(() => {
+                if (!containerRef.current) return {};
+                const rect = containerRef.current.getBoundingClientRect();
+                const x = selectedLabel.x - rect.left;
+                const y = selectedLabel.y - rect.top;
+                const isBottom = y > rect.height / 2;
+                const isRight = x > rect.width / 2;
+                
+                return {
+                    left: isRight ? 'auto' : Math.min(x + 15, rect.width - 270),
+                    right: isRight ? Math.min(rect.width - x + 15, rect.width - 270) : 'auto',
+                    top: isBottom ? 'auto' : y + 10,
+                    bottom: isBottom ? (rect.height - y + 10) : 'auto'
+                };
+            })()}
+            onClick={(e) => e.stopPropagation()}
+        >
+            <div className="flex justify-between items-center mb-3 border-b border-white/10 pb-2">
+                <span className="font-bold text-sm">{selectedStructure.name}</span>
+                <button 
+                    onClick={() => setSelectedLabel(null)}
+                    className="hover:text-red-400 transition-colors"
+                >
+                    <X className="w-4 h-4" />
+                </button>
+            </div>
+
+            <div className="space-y-3">
+                {/* Hide Button */}
+                <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">Visibility</span>
+                    <button 
+                        onClick={() => {
+                            setVisible(selectedStructure.id, false)
+                            setSelectedLabel(null)
+                        }}
+                        className="flex items-center gap-2 px-2 py-1 bg-white/10 hover:bg-white/20 rounded text-xs transition-colors"
+                    >
+                        <EyeOff className="w-3 h-3" />
+                        Hide
+                    </button>
+                </div>
+
+                {/* Color Picker */}
+                <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">Color</span>
+                    <div className="flex items-center gap-2">
+                        <div 
+                            className="w-4 h-4 rounded-full border border-white/30"
+                            style={{ backgroundColor: rgbToHex(selectedStructure.color) }}
+                        />
+                        <input 
+                            type="color" 
+                            value={rgbToHex(selectedStructure.color)}
+                            onChange={(e) => setColor(selectedStructure.id, hexToRgb(e.target.value))}
+                            className="opacity-0 absolute w-8 h-6 cursor-pointer"
+                        />
+                        <span className="text-xs text-gray-500">Change</span>
+                    </div>
+                </div>
+
+                {/* Opacity Slider */}
+                <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-gray-400">
+                        <span>Opacity</span>
+                        <span>{selectedStructure.opacity}%</span>
+                    </div>
+                    <Slider 
+                        value={[selectedStructure.opacity]} 
+                        min={0} 
+                        max={100} 
+                        step={1}
+                        onValueChange={(v) => setOpacity(selectedStructure.id, v[0])}
+                        className="w-full"
+                    />
+                </div>
+            </div>
+        </div>
+      )}
+      
       {showOverlay && (
         <div className="absolute inset-0 grid place-items-center text-xs text-white/70 select-none pointer-events-none">
           <div>

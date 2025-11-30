@@ -35,10 +35,10 @@ function AuthenticatedApp() {
     setView('dashboard')
   }
 
-  const handleViewStudy = async (studyUrl: string, jobId: string, filename: string) => {
+  const handleViewStudy = async (studyUrl: string, jobId: string, filename: string, artifacts?: any) => {
     try {
       setIsLoading(true)
-      console.log('[view-study] Loading study:', { jobId, filename, url: studyUrl })
+      console.log('[view-study] Loading study:', { jobId, filename, url: studyUrl, artifacts })
       
       // Download the file from S3
       const response = await fetch(studyUrl)
@@ -64,7 +64,14 @@ function AuthenticatedApp() {
       // Load the file into the viewer and set studyId
       console.log('[view-study] Calling loadLocalFiles...')
       await loadLocalFiles([file])
-      useAppStore.setState({ studyId: jobId })
+      
+      // Process artifacts to ensure consistent naming (backend sends plural 'segmentations', frontend expects 'segmentation')
+      let processedArtifacts = artifacts
+      if (artifacts && artifacts.segmentations && !artifacts.segmentation) {
+          processedArtifacts = { ...artifacts, segmentation: artifacts.segmentations }
+      }
+      
+      useAppStore.setState({ studyId: jobId, artifacts: processedArtifacts })
       console.log('[view-study] File loaded successfully')
       
       // Navigate to viewer

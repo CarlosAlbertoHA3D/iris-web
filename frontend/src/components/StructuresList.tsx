@@ -1,5 +1,8 @@
-import { useState } from 'react'
-import { ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { 
+  ChevronDown, ChevronRight, Eye, EyeOff,
+  Brain, Wind, Heart, Activity, Utensils, Bone, Dumbbell, Droplets, Baby, FlaskConical, Box
+} from 'lucide-react'
 import { Slider } from './ui/slider'
 import { Label } from './ui/label'
 import { useAppStore, type StructureItem } from '../store/useAppStore'
@@ -17,18 +20,33 @@ function hexToRgb(hex: string): [number, number, number] {
 }
 
 const SYSTEM_NAMES: Record<string, string> = {
-  'nervous': '🧠 Nervous System',
-  'respiratory': '🫁 Respiratory',
-  'heart_cardiovascular': '❤️ Heart',
-  'arteries_cardiovascular': '🔴 Arteries',
-  'veins_cardiovascular': '🔵 Veins',
-  'digestive': '🍽️ Digestive',
-  'skeletal': '🦴 Skeletal',
-  'muscular': '💪 Muscular',
-  'urinary': '🚽 Urinary',
-  'reproductive': '🌸 Reproductive',
-  'endocrine': '🧪 Endocrine',
-  'other': '📦 Other'
+  'nervous': 'Nervous System',
+  'respiratory': 'Respiratory',
+  'heart_cardiovascular': 'Heart',
+  'arteries_cardiovascular': 'Arteries',
+  'veins_cardiovascular': 'Veins',
+  'digestive': 'Digestive',
+  'skeletal': 'Skeletal',
+  'muscular': 'Muscular',
+  'urinary': 'Urinary',
+  'reproductive': 'Reproductive',
+  'endocrine': 'Endocrine',
+  'other': 'Other'
+}
+
+const SYSTEM_ICONS: Record<string, any> = {
+  'nervous': Brain,
+  'respiratory': Wind,
+  'heart_cardiovascular': Heart,
+  'arteries_cardiovascular': Activity,
+  'veins_cardiovascular': Activity,
+  'digestive': Utensils,
+  'skeletal': Bone,
+  'muscular': Dumbbell,
+  'urinary': Droplets,
+  'reproductive': Baby,
+  'endocrine': FlaskConical,
+  'other': Box
 }
 
 export default function StructuresList() {
@@ -39,6 +57,14 @@ export default function StructuresList() {
   
   // Track collapsed systems
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+
+  // Initialize all systems as collapsed by default
+  useEffect(() => {
+    if (structures.length > 0 && Object.keys(collapsed).length === 0) {
+      const systems = [...new Set(structures.map((s) => s.system))]
+      setCollapsed(systems.reduce((acc, sys) => ({ ...acc, [sys]: true }), {}))
+    }
+  }, [structures])
 
   if (!structures.length) {
     return <div className="text-sm text-muted-foreground">Will appear after processing.</div>
@@ -65,6 +91,7 @@ export default function StructuresList() {
         const isCollapsed = collapsed[system]
         const allVisible = items.every(it => it.visible)
         const someVisible = items.some(it => it.visible)
+        const Icon = SYSTEM_ICONS[system] || Box
         
         return (
           <div key={system} className="border rounded-md overflow-hidden">
@@ -72,6 +99,7 @@ export default function StructuresList() {
             <div className="bg-muted/50 p-2 flex items-center justify-between cursor-pointer hover:bg-muted/70 transition-colors">
               <div className="flex items-center gap-2 flex-1" onClick={() => toggleSystem(system)}>
                 {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                <Icon className="w-4 h-4 text-muted-foreground" />
                 <span className="text-sm font-semibold">
                   {SYSTEM_NAMES[system] || system}
                 </span>
