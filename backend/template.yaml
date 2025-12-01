@@ -43,8 +43,7 @@ Resources:
       CorsConfiguration:
         CorsRules:
           - AllowedOrigins:
-              - 'https://iris-oculus.com'
-              - 'http://localhost:5173'
+              - '*'
             AllowedMethods:
               - GET
               - PUT

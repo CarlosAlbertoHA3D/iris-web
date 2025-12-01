@@ -176,7 +176,22 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
     }
   }
 
-  async function generateVRCode() {
+  async function generateVRCode(jobId?: string) {
+    if (!jobId) return
+
+    // Check local storage for existing valid code
+    try {
+      const storedCodes = JSON.parse(localStorage.getItem('vr_codes') || '{}')
+      const stored = storedCodes[jobId]
+      // Check if code exists and is not expired (with 5 min buffer)
+      if (stored && stored.expiresAt > (Date.now() / 1000 + 300)) {
+        setVrCode(stored)
+        return
+      }
+    } catch (e) {
+      console.warn('Error reading local storage:', e)
+    }
+
     try {
       setGeneratingCode(true)
       const session = await fetchAuthSession()
@@ -187,8 +202,10 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${token}`
-          }
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ jobId })
         }
       )
 
@@ -198,6 +215,16 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
 
       const data = await response.json()
       setVrCode(data)
+      
+      // Save to local storage
+      try {
+        const storedCodes = JSON.parse(localStorage.getItem('vr_codes') || '{}')
+        storedCodes[jobId] = data
+        localStorage.setItem('vr_codes', JSON.stringify(storedCodes))
+      } catch (e) {
+        console.warn('Error saving to local storage:', e)
+      }
+
     } catch (error) {
       console.error('Error generating VR code:', error)
       alert('Failed to generate VR code. Please try again.')
@@ -256,10 +283,10 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
       <div className="dashboard-header">
         <h1>My Studies</h1>
         <div className="header-actions">
-          <button onClick={generateVRCode} className="btn-secondary" disabled={generatingCode}>
+          {/* <button onClick={() => generateVRCode()} className="btn-secondary" disabled={generatingCode}>
             <Smartphone className="btn-icon" />
             {generatingCode ? 'Generating...' : 'Sincronizar con VR'}
-          </button>
+          </button> */}
           <button onClick={onUploadNewStudy} className="btn-upload">
             <Upload className="btn-icon" />
             Upload New Study
@@ -315,6 +342,20 @@ export function Dashboard({ onUploadNewStudy, onViewStudy }: DashboardProps) {
                 <p className="image-id">Job ID: {img.jobId}</p>
               </div>
               <div className="image-card-actions">
+                {img.status === 'completed' && (
+                  <button 
+                    className="btn-view"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      generateVRCode(img.jobId)
+                    }}
+                    disabled={generatingCode}
+                    title="Sync with VR"
+                    style={{ marginRight: '0.5rem' }}
+                  >
+                    <Smartphone className="btn-icon-sm" />
+                  </button>
+                )}
                 <button 
                   className="btn-view"
                   onClick={(e) => {
