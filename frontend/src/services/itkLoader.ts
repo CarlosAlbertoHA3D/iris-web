@@ -1,5 +1,8 @@
 // Minimal local file loader using itk-wasm with embedded worker build
-// Tries multiple API variants for compatibility across itk-wasm builds
+// Uses @itk-wasm/dicom and @itk-wasm/image-io for DICOM and generic image reading
+
+import { readImageDicomFileSeries } from '@itk-wasm/dicom'
+import { readImage } from '@itk-wasm/image-io'
 
 export interface ItkLoadResult {
   image: any
@@ -18,31 +21,12 @@ function looksDicom(files: File[]) {
 export async function loadImageFromFiles(files: File[]): Promise<ItkLoadResult | null> {
   if (!files.length) return null
   try {
-    // Import itk-wasm (core)
+    // Import itk-wasm (core) for enums only - actual reading uses @itk-wasm/dicom and @itk-wasm/image-io
     const rawCore: any = await import('itk-wasm')
     const mod: any = rawCore?.default ?? rawCore
     // eslint-disable-next-line no-console
-    console.log('[itkLoader] itk-wasm loaded:', Object.keys(mod))
-    // Configure base URLs for IO/pipelines if API is available
-    try {
-      const base = (import.meta as any).env?.BASE_URL || '/'
-      const opts = {
-        pipelinesUrl: `${base}itk/pipeline`,
-        imageIOUrl: `${base}itk/image-io`,
-        meshIOUrl: `${base}itk/mesh-io`,
-        pipelineWorkerUrl: `${base}itk/web-workers/pipeline.worker.js`,
-      }
-      if (typeof mod.setBaseOptions === 'function') {
-        mod.setBaseOptions(opts)
-      } else {
-        if (typeof mod.setPipelinesBaseUrl === 'function') mod.setPipelinesBaseUrl(opts.pipelinesUrl)
-        if (typeof mod.setImageIOBaseUrl === 'function') mod.setImageIOBaseUrl(opts.imageIOUrl)
-        if (typeof mod.setMeshIOBaseUrl === 'function') mod.setMeshIOBaseUrl(opts.meshIOUrl)
-        if (typeof mod.setPipelineWorkerUrl === 'function') mod.setPipelineWorkerUrl(opts.pipelineWorkerUrl)
-      }
-      // eslint-disable-next-line no-console
-      console.log('[itkLoader] Configured base URLs:', opts)
-    } catch {}
+    console.log('[itkLoader] itk-wasm loaded (for enums)')
+    // Note: @itk-wasm/dicom and @itk-wasm/image-io use their own CDN-based pipeline loading by default
 
     if (files.length === 1 && isNifti(files[0].name)) {
       const file = files[0]
@@ -117,52 +101,33 @@ export async function loadImageFromFiles(files: File[]): Promise<ItkLoadResult |
       }
     }
 
-    // DICOM series
+    // DICOM series - use @itk-wasm/dicom
     if (looksDicom(files)) {
       // eslint-disable-next-line no-console
       console.log('[itkLoader] Detected DICOM series, files:', files.length)
-      if (typeof mod.readImageDICOMFileSeries === 'function') {
-        try {
-          const result = await mod.readImageDICOMFileSeries(files)
-          const image = result?.image ?? result?.outputImage ?? result
-          // eslint-disable-next-line no-console
-          console.log('[itkLoader] readImageDICOMFileSeries -> size:', image?.size, 'componentType:', image?.imageType?.componentType)
-          return image ? { image } : null
-        } catch (e) {
-          console.warn('[itkLoader] readImageDICOMFileSeries failed:', e)
-        }
-      }
-      if (typeof mod.readImageFileSeries === 'function') {
-        try {
-          const result = await mod.readImageFileSeries(files)
-          const image = result?.image ?? result?.outputImage ?? result
-          // eslint-disable-next-line no-console
-          console.log('[itkLoader] readImageFileSeries (generic) -> size:', image?.size, 'componentType:', image?.imageType?.componentType)
-          return image ? { image } : null
-        } catch (e) {
-          console.warn('[itkLoader] readImageFileSeries failed:', e)
-        }
+      try {
+        const result = await readImageDicomFileSeries({ inputImages: files })
+        const image = result?.outputImage ?? result
+        // eslint-disable-next-line no-console
+        console.log('[itkLoader] readImageDicomFileSeries -> size:', image?.size, 'componentType:', image?.imageType?.componentType)
+        return image ? { image } : null
+      } catch (e) {
+        console.warn('[itkLoader] readImageDicomFileSeries failed:', e)
       }
     }
 
-    // Fallback: try first file as generic image
+    // Fallback: try first file as generic image using @itk-wasm/image-io
     const file = files[0]
     // eslint-disable-next-line no-console
     console.log('[itkLoader] Fallback generic read for:', file.name)
-    if (typeof mod.readImageFile === 'function') {
-      const result = await mod.readImageFile(file)
-      const image = result?.image ?? result?.outputImage ?? result
+    try {
+      const result = await readImage(file)
+      const image = result?.image ?? result
       // eslint-disable-next-line no-console
-      console.log('[itkLoader] readImageFile (fallback) -> size:', image?.size)
+      console.log('[itkLoader] readImage (fallback) -> size:', image?.size)
       return image ? { image } : null
-    }
-    if (typeof mod.readImageArrayBuffer === 'function') {
-      const ab = await file.arrayBuffer()
-      const result = await mod.readImageArrayBuffer(ab, file.name)
-      const image = result?.image ?? result?.outputImage ?? result
-      // eslint-disable-next-line no-console
-      console.log('[itkLoader] readImageArrayBuffer (fallback) -> size:', image?.size)
-      return image ? { image } : null
+    } catch (e) {
+      console.warn('[itkLoader] readImage failed:', e)
     }
   } catch (e) {
     console.warn('itkLoader failed:', e)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 AWS Batch processor for TotalSegmentator
-Processes NIFTI files, generates 3D meshes, and uploads to S3
+Processes NIFTI and DICOM files, generates 3D meshes, and uploads to S3
 """
 
 import os
@@ -120,15 +120,18 @@ def main():
         # Create temporary directory
         with tempfile.TemporaryDirectory() as tmpdir:
             work_dir = Path(tmpdir)
-            input_path = work_dir / 'input.nii.gz'
             seg_dir = work_dir / 'segmentations'
             output_dir = work_dir / 'output'
             
             seg_dir.mkdir(parents=True, exist_ok=True)
             output_dir.mkdir(parents=True, exist_ok=True)
             
-            # Download input from S3
-            print(f"[batch] Downloading input file...")
+            # Download input from S3 preserving original filename
+            # TotalSegmentator supports both NIfTI and DICOM formats natively
+            original_filename = Path(S3_INPUT_KEY).name
+            input_path = work_dir / original_filename
+            
+            print(f"[batch] Downloading input file: {original_filename}")
             s3.download_file(S3_BUCKET, S3_INPUT_KEY, str(input_path))
             print(f"[batch] Downloaded {input_path.stat().st_size / 1024 / 1024:.1f} MB")
             
