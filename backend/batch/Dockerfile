@@ -1,7 +1,8 @@
 # AWS Batch TotalSegmentator Docker Image
 # Optimized for spot instances with GPU
 
-FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
+# Use NVIDIA image from NGC (NVIDIA GPU Cloud) - no Docker Hub rate limits
+FROM nvcr.io/nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -9,7 +10,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 
-# Install essential system dependencies
+# Install essential system dependencies including dcm2niix for DICOM conversion
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.10 \
     python3-pip \
@@ -21,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libgl1 \
     libgomp1 \
+    dcm2niix \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -40,19 +42,20 @@ RUN pip3 install --no-cache-dir \
     scipy==1.11.1 \
     scikit-image==0.21.0 \
     SimpleITK==2.2.1 \
-    nnunet==1.7.1
+    nnunetv2>=2.3.1
 
-# Install TotalSegmentator
-RUN pip3 install --no-cache-dir TotalSegmentator==2.2.1
+# Install TotalSegmentator 2.11.0 (includes 'teeth' task)
+RUN pip3 install --no-cache-dir TotalSegmentator==2.11.0
 
 # Install mesh processing libraries
 RUN pip3 install --no-cache-dir \
     trimesh==3.23.5 \
     open3d==0.17.0
 
-# Install AWS SDK
+# Install AWS SDK and DICOM reading
 RUN pip3 install --no-cache-dir \
-    boto3==1.28.85
+    boto3==1.28.85 \
+    pydicom>=3.0.0
 
 # Clean up pip cache
 RUN pip3 cache purge && \

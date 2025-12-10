@@ -1,5 +1,5 @@
 import { create, type StateCreator } from 'zustand'
-import { loadImageFromFiles } from '../services/itkLoader'
+import { loadImageFromFiles, type DicomMetadata } from '../services/itkLoader'
 
 export type JobStatus = 'idle' | 'uploading' | 'queued' | 'processing' | 'completed' | 'failed'
 
@@ -50,6 +50,7 @@ interface AppState {
   uploads: UploadItem[]
   studyId?: string
   currentImage?: any
+  dicomMetadata?: DicomMetadata
   lastLocalFiles: File[]
   layout: { fullscreenPane: Pane | null }
   structures: StructureItem[]
@@ -200,18 +201,30 @@ const creator: StateCreator<AppState> = (set, get) => ({
       if (res?.image) {
         // eslint-disable-next-line no-console
         console.log('[store] loadLocalFiles -> image ready size=', res.image?.size)
+        if (res.dicomMetadata) {
+          console.log('[store] DICOM metadata:', res.dicomMetadata)
+        }
         
         // Center views by default
         const [x, y, z] = res.image.size
-        const newState = {
+        const currentViewer = get().viewer
+        
+        // Use DICOM window settings if available, otherwise keep current
+        const ww = res.dicomMetadata?.windowWidth ?? currentViewer.ww
+        const wl = res.dicomMetadata?.windowCenter ?? currentViewer.wl
+        
+        const newState: Partial<AppState> = {
             currentImage: res.image,
+            dicomMetadata: res.dicomMetadata,
             lastLocalFiles: files,
             viewer: {
-                ...get().viewer,
+                ...currentViewer,
                 // ITK images are (x, y, z). Axial slices along Z, Coronal along Y, Sagittal along X
                 axialIndex: Math.floor(z / 2),
                 coronalIndex: Math.floor(y / 2),
-                sagittalIndex: Math.floor(x / 2)
+                sagittalIndex: Math.floor(x / 2),
+                ww,
+                wl,
             }
         }
         set(newState)

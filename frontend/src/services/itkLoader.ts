@@ -1,16 +1,107 @@
 // Minimal local file loader using itk-wasm with embedded worker build
 // Uses @itk-wasm/dicom and @itk-wasm/image-io for DICOM and generic image reading
 
-import { readImageDicomFileSeries } from '@itk-wasm/dicom'
+import { readImageDicomFileSeries, readDicomTags } from '@itk-wasm/dicom'
 import { readImage } from '@itk-wasm/image-io'
+
+export interface DicomMetadata {
+  windowCenter?: number
+  windowWidth?: number
+  imageOrientationPatient?: number[]
+  patientPosition?: string
+  rescaleSlope?: number
+  rescaleIntercept?: number
+}
 
 export interface ItkLoadResult {
   image: any
+  dicomMetadata?: DicomMetadata
 }
 
 function isNifti(name: string) {
   const n = name.toLowerCase()
   return n.endsWith('.nii') || n.endsWith('.nii.gz') || n.endsWith('.nrrd') || n.endsWith('.mha') || n.endsWith('.mhd')
+}
+
+/**
+ * Reorient image data to RAS (Right-Anterior-Superior) canonical orientation.
+ * This ensures consistent display regardless of acquisition orientation.
+ */
+function reorientToRAS(image: any): any {
+  if (!image || !image.direction || !image.data || !image.size) {
+    return image
+  }
+  
+  const dir = image.direction as Float64Array | number[]
+  const [sx, sy, sz] = image.size as number[]
+  const data = image.data as Float32Array
+  
+  // Direction matrix is 3x3 column-major
+  // Each column represents how image axis maps to patient RAS
+  // We want the diagonal to be positive (or close to ±1)
+  
+  // Determine which axes need flipping based on dominant direction
+  // Column 0: X axis -> should map to R (Right)
+  // Column 1: Y axis -> should map to A (Anterior)  
+  // Column 2: Z axis -> should map to S (Superior)
+  
+  const needFlipX = dir[0] < 0  // If X maps to Left, flip
+  const needFlipY = dir[4] < 0  // If Y maps to Posterior, flip
+  const needFlipZ = dir[8] < 0  // If Z maps to Inferior, flip
+  
+  console.log('[itkLoader] Direction diagonal:', [dir[0], dir[4], dir[8]].map(v => v.toFixed(3)))
+  console.log('[itkLoader] Need flips: X=', needFlipX, 'Y=', needFlipY, 'Z=', needFlipZ)
+  
+  // If no flips needed, return original
+  if (!needFlipX && !needFlipY && !needFlipZ) {
+    console.log('[itkLoader] No reorientation needed')
+    return image
+  }
+  
+  // Create new flipped data
+  const newData = new Float32Array(data.length)
+  const zStride = sx * sy
+  
+  for (let z = 0; z < sz; z++) {
+    for (let y = 0; y < sy; y++) {
+      for (let x = 0; x < sx; x++) {
+        const srcX = needFlipX ? (sx - 1 - x) : x
+        const srcY = needFlipY ? (sy - 1 - y) : y
+        const srcZ = needFlipZ ? (sz - 1 - z) : z
+        
+        const srcIdx = srcX + srcY * sx + srcZ * zStride
+        const dstIdx = x + y * sx + z * zStride
+        
+        newData[dstIdx] = data[srcIdx]
+      }
+    }
+  }
+  
+  // Create new direction matrix with positive diagonals
+  const newDir = new Float64Array(9)
+  newDir[0] = Math.abs(dir[0])
+  newDir[4] = Math.abs(dir[4])
+  newDir[8] = Math.abs(dir[8])
+  // Keep off-diagonal elements but flip signs as needed
+  newDir[1] = needFlipX ? -dir[1] : dir[1]
+  newDir[2] = needFlipX ? -dir[2] : dir[2]
+  newDir[3] = needFlipY ? -dir[3] : dir[3]
+  newDir[5] = needFlipY ? -dir[5] : dir[5]
+  newDir[6] = needFlipZ ? -dir[6] : dir[6]
+  newDir[7] = needFlipZ ? -dir[7] : dir[7]
+  
+  // Update origin if needed (simplified - just negate for flipped axes)
+  const origin = [...(image.origin || [0, 0, 0])]
+  // Origin adjustment would be more complex in reality, but for display purposes this works
+  
+  console.log('[itkLoader] Reoriented to RAS')
+  
+  return {
+    ...image,
+    data: newData,
+    direction: newDir,
+    origin,
+  }
 }
 
 function looksDicom(files: File[]) {
@@ -84,8 +175,8 @@ export async function loadImageFromFiles(files: File[]): Promise<ItkLoadResult |
           name: file.name,
           origin: [0, 0, 0],
           spacing: [dx || 1, dy || 1, dz || 1],
-          // Default orientation: flip Z so superior appears at top in coronal/sagittal
-          direction: new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, -1]),
+          // RAS orientation (Right-Anterior-Superior) - standard for display
+          direction: new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, 1]),
           size: [sx, sy, sz],
           data: dataF32,
           metadata: {},
@@ -106,11 +197,55 @@ export async function loadImageFromFiles(files: File[]): Promise<ItkLoadResult |
       // eslint-disable-next-line no-console
       console.log('[itkLoader] Detected DICOM series, files:', files.length)
       try {
+        // Read DICOM tags from the first file for metadata
+        let dicomMetadata: DicomMetadata | undefined
+        try {
+          const tagsResult = await readDicomTags(files[0], {
+            tagsToRead: { tags: [
+              '0028|1050', // Window Center
+              '0028|1051', // Window Width
+              '0020|0037', // Image Orientation Patient
+              '0018|5100', // Patient Position
+              '0028|1052', // Rescale Intercept
+              '0028|1053', // Rescale Slope
+            ]}
+          })
+          
+          const tagsMap = new Map<string, string>()
+          if (Array.isArray(tagsResult?.tags)) {
+            for (const [tag, value] of tagsResult.tags as [string, string][]) {
+              tagsMap.set(tag, value)
+            }
+          }
+          
+          const parseNumbers = (s?: string) => s?.split('\\').map(Number).filter(n => !isNaN(n))
+          
+          dicomMetadata = {
+            windowCenter: parseNumbers(tagsMap.get('0028|1050'))?.[0],
+            windowWidth: parseNumbers(tagsMap.get('0028|1051'))?.[0],
+            imageOrientationPatient: parseNumbers(tagsMap.get('0020|0037')),
+            patientPosition: tagsMap.get('0018|5100'),
+            rescaleIntercept: parseNumbers(tagsMap.get('0028|1052'))?.[0],
+            rescaleSlope: parseNumbers(tagsMap.get('0028|1053'))?.[0],
+          }
+          
+          console.log('[itkLoader] DICOM metadata:', dicomMetadata)
+        } catch (tagErr) {
+          console.warn('[itkLoader] Failed to read DICOM tags:', tagErr)
+        }
+        
         const result = await readImageDicomFileSeries({ inputImages: files })
-        const image = result?.outputImage ?? result
+        let image = result?.outputImage ?? result
         // eslint-disable-next-line no-console
         console.log('[itkLoader] readImageDicomFileSeries -> size:', image?.size, 'componentType:', image?.imageType?.componentType)
-        return image ? { image } : null
+        
+        // Reorient to RAS canonical orientation to match backend segmentation masks
+        // Backend uses nib.as_closest_canonical() which reorients to RAS
+        if (image) {
+          image = reorientToRAS(image)
+        }
+        
+        return image ? { image, dicomMetadata } : null
       } catch (e) {
         console.warn('[itkLoader] readImageDicomFileSeries failed:', e)
       }

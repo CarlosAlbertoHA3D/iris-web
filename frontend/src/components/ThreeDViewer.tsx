@@ -168,6 +168,8 @@ function getUrlPath(url: string) {
 // Global cache to persist across unmounts/remounts
 const modelCache: Record<string, THREE.Group> = {}
 const modelPromises: Record<string, Promise<THREE.Group>> = {}
+// Track which models we've already fit the camera to (avoid resetting view on re-render)
+const fittedModels: Set<string> = new Set()
 
 export default function ThreeDViewer({ tall }: { tall?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -206,6 +208,10 @@ export default function ThreeDViewer({ tall }: { tall?: boolean }) {
   // We use a global cache instead of local refs to handle unmount/remount and multiple requests
   const raycasterRef = useRef(new THREE.Raycaster())
   const mouseRef = useRef(new THREE.Vector2())
+
+  // Memoize URL paths to avoid re-triggering effect on query param changes (presigned URLs)
+  const stableObjUrl = useMemo(() => artifacts?.obj ? getUrlPath(artifacts.obj) : '', [artifacts?.obj])
+  const stableMtlUrl = useMemo(() => artifacts?.mtl ? getUrlPath(artifacts.mtl) : '', [artifacts?.mtl])
 
   useEffect(() => {
     const canvas = canvasRef.current!
@@ -403,10 +409,8 @@ export default function ThreeDViewer({ tall }: { tall?: boolean }) {
              const dimZ = size[2] * spacing[2]
              mesh.scale.set(dimX, dimY, dimZ)
 
-             const cx = origin[0] + dimX / 2
-             const cy = origin[1] + dimY / 2
-             const cz = origin[2] + dimZ / 2
-             mesh.position.set(cx, cy, cz)
+             // Center volume at origin (0,0,0) to align with centered 3D model
+             mesh.position.set(0, 0, 0)
              
              const group = new THREE.Group()
              group.rotation.x = -Math.PI / 2
@@ -648,9 +652,9 @@ export default function ThreeDViewer({ tall }: { tall?: boolean }) {
     const scene = sceneRef.current
     if (!scene) return
     
-    if (!artifacts?.obj || !artifacts?.mtl) return
+    if (!stableObjUrl || !stableMtlUrl || !artifacts?.obj || !artifacts?.mtl) return
 
-    const objUrl = getUrlPath(artifacts.obj)
+    const objUrl = stableObjUrl
     
     // Clear previous model from scene
     if (rootRef.current) {
@@ -665,7 +669,7 @@ export default function ThreeDViewer({ tall }: { tall?: boolean }) {
 
     let active = true
 
-    const setupModel = (originalRoot: THREE.Group) => {
+    const setupModel = (originalRoot: THREE.Group, isFirstLoad: boolean) => {
         if (!active) return
         // Clone the model so we can have independent instances
         const root = originalRoot.clone()
@@ -695,13 +699,17 @@ export default function ThreeDViewer({ tall }: { tall?: boolean }) {
         updateClippingPlanes()
         applyClippingToMaterials()
         
-        fitToObject(root)
+        // Only fit camera on first load of this model (not on re-renders)
+        if (isFirstLoad && !fittedModels.has(objUrl)) {
+            fitToObject(root)
+            fittedModels.add(objUrl)
+        }
         setIsLoading(false)
     }
 
     // 1. Check Cache
     if (modelCache[objUrl]) {
-        setupModel(modelCache[objUrl])
+        setupModel(modelCache[objUrl], false)
         return
     }
 
@@ -710,7 +718,7 @@ export default function ThreeDViewer({ tall }: { tall?: boolean }) {
         setIsLoading(true)
         modelPromises[objUrl]
             .then((group) => {
-                if (active) setupModel(group)
+                if (active) setupModel(group, true)
             })
             .catch(err => {
                 console.warn('[3d] Cached promise failed', err)
@@ -734,12 +742,41 @@ export default function ThreeDViewer({ tall }: { tall?: boolean }) {
                 
                 // Fix Orientation: Rotate -90 deg on X to make patient stand up (Y-up)
                 root.rotation.x = -Math.PI / 2
+                // Apply horizontal mirror (flip X) to fix segmentation mask orientation as requested
+                root.scale.set(-1, 1, 1)
                 
+                // Center the model geometry at origin
+                const box = new THREE.Box3().setFromObject(obj)
+                const size = box.getSize(new THREE.Vector3())
+                const center = box.getCenter(new THREE.Vector3())
+                
+                console.log('[3d] Raw Model Bounds:', { size, center })
+
+                // Auto-scale if too large (e.g. > 2000 units)
+                const maxDim = Math.max(size.x, size.y, size.z)
+                if (maxDim > 2000) {
+                    const scaleFactor = 1000 / maxDim
+                    console.log(`[3d] Model too large (${maxDim}), scaling by ${scaleFactor}`)
+                    obj.scale.set(scaleFactor, scaleFactor, scaleFactor)
+                    obj.updateMatrix()
+                    
+                    // Recompute center after scaling (scaling happens around 0,0,0, so center moves)
+                    // center * scaleFactor should be the new center if we only scaled
+                    center.multiplyScalar(scaleFactor)
+                }
+
+                // Center the object by offsetting its position
+                // We move the object so its center aligns with the parent's origin (0,0,0)
+                obj.position.copy(center).negate()
+                
+                console.log('[3d] Adjusted Model Position:', obj.position)
+
                 // Optimize and fix meshes
                 obj.traverse((child: any) => {
                     if (child.isMesh) {
                         if (!child.name && child.parent?.name) child.name = child.parent.name
                         
+                        // Ensure normals are present
                         child.geometry.computeVertexNormals()
                         
                         if (child.material) {
@@ -769,7 +806,11 @@ export default function ThreeDViewer({ tall }: { tall?: boolean }) {
 
     promise
         .then((group) => {
-            if (active) setupModel(group)
+            if (active) {
+                // Force refit on fresh load
+                fittedModels.delete(objUrl)
+                setupModel(group, true)
+            }
         })
         .catch((err) => {
             console.warn('[3d] Load error:', err)
@@ -781,7 +822,7 @@ export default function ThreeDViewer({ tall }: { tall?: boolean }) {
     return () => {
         active = false
     }
-  }, [artifacts?.obj, artifacts?.mtl])
+  }, [stableObjUrl, stableMtlUrl])  // Use stable URL paths to avoid re-trigger on presigned URL refresh
 
   // Sync when structures change
   useEffect(() => {

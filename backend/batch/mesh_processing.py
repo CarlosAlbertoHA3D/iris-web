@@ -76,13 +76,88 @@ def get_system_for_subobject(obj_name_original: str) -> str:
 
 def get_color_for_subobject(obj_name_original: str) -> Tuple[int, int, int]:
     name = obj_name_original.lower()
+    
+    # ===== DENTAL STRUCTURES - Unique colors per tooth =====
+    # FDI notation: 1x=upper right, 2x=upper left, 3x=lower left, 4x=lower right
+    # x1=central incisor, x2=lateral incisor, x3=canine, x4-x5=premolars, x6-x8=molars
+    
+    dental_colors = {
+        # Upper Right (1x) - Blue spectrum
+        "upper_right_central_incisor": (0, 120, 255),      # Bright blue
+        "upper_right_lateral_incisor": (0, 180, 255),      # Sky blue
+        "upper_right_canine": (0, 220, 200),               # Cyan
+        "upper_right_first_premolar": (0, 200, 150),       # Teal
+        "upper_right_second_premolar": (0, 180, 120),      # Sea green
+        "upper_right_first_molar": (0, 160, 100),          # Green-teal
+        "upper_right_second_molar": (0, 140, 80),          # Dark teal
+        "upper_right_third_molar": (0, 120, 60),           # Forest teal
+        
+        # Upper Left (2x) - Green spectrum
+        "upper_left_central_incisor": (50, 205, 50),       # Lime green
+        "upper_left_lateral_incisor": (34, 180, 34),       # Forest green
+        "upper_left_canine": (0, 200, 100),                # Spring green
+        "upper_left_first_premolar": (60, 179, 113),       # Medium sea green
+        "upper_left_second_premolar": (46, 139, 87),       # Sea green
+        "upper_left_first_molar": (32, 178, 170),          # Light sea green
+        "upper_left_second_molar": (0, 139, 139),          # Dark cyan
+        "upper_left_third_molar": (0, 128, 128),           # Teal
+        
+        # Lower Left (3x) - Yellow/Orange spectrum
+        "lower_left_central_incisor": (255, 215, 0),       # Gold
+        "lower_left_lateral_incisor": (255, 193, 37),      # Goldenrod
+        "lower_left_canine": (255, 165, 0),                # Orange
+        "lower_left_first_premolar": (255, 140, 0),        # Dark orange
+        "lower_left_second_premolar": (255, 127, 80),      # Coral
+        "lower_left_first_molar": (255, 99, 71),           # Tomato
+        "lower_left_second_molar": (250, 128, 114),        # Salmon
+        "lower_left_third_molar": (233, 150, 122),         # Dark salmon
+        
+        # Lower Right (4x) - Purple/Pink spectrum
+        "lower_right_central_incisor": (186, 85, 211),     # Medium orchid
+        "lower_right_lateral_incisor": (147, 112, 219),    # Medium purple
+        "lower_right_canine": (138, 43, 226),              # Blue violet
+        "lower_right_first_premolar": (153, 50, 204),      # Dark orchid
+        "lower_right_second_premolar": (148, 0, 211),      # Dark violet
+        "lower_right_first_molar": (199, 21, 133),         # Medium violet red
+        "lower_right_second_molar": (219, 112, 147),       # Pale violet red
+        "lower_right_third_molar": (255, 20, 147),         # Deep pink
+        
+        # Pulp chambers - Red tones (darker/brighter than teeth)
+        "pulp": (220, 20, 60),                             # Crimson for all pulp
+        
+        # Crown
+        "crown": (255, 248, 220),                          # Cornsilk (ivory/cream)
+        
+        # Anatomical structures
+        "maxillary_sinus": (135, 206, 250),                # Light sky blue
+        "inferior_alveolar_canal": (255, 215, 0),          # Gold/yellow for nerves
+        "mandibular_canal": (255, 200, 0),                 # Similar gold
+    }
+    
+    # Check for specific dental structures first
+    for key, color in dental_colors.items():
+        if key in name:
+            return color
+    
+    # Check for pulp (any tooth pulp)
+    if "pulp" in name:
+        return (220, 20, 60)  # Crimson
+    
+    # Check for sinus
+    if "sinus" in name:
+        return (135, 206, 250)  # Light sky blue
+    
+    # Check for canal (nerve)
+    if "canal" in name:
+        return (255, 215, 0)  # Gold
+    
+    # ===== Original specific mappings =====
     specific = {
         "heartchambers_highres": (200, 90, 70),
         "gland": (238, 130, 25),
         "brain": (255, 180, 184),
         "cyst": (70, 230, 120),
         "gingiva": (255, 182, 193),
-        "sinus": (25, 60, 255),
         "perforator": (255, 100, 50),
         "circumflex": (255, 100, 50),
         "colon": (200, 125, 140),
@@ -235,12 +310,17 @@ def mask_to_mesh(nii_path: Path, level: float = 0.5, smooth: bool = True) -> Opt
         data = img.get_fdata()
         if data.max() <= 0:
             return None
+        
         spacing = img.header.get_zooms()[:3]
+        
+        # Generate mesh in voxel space (scaled by spacing)
+        # This matches how the frontend displays the volume (array index * spacing)
         verts, faces, normals, values = measure.marching_cubes(data, level=level, spacing=spacing)
         if len(verts) == 0 or len(faces) == 0:
             return None
         
-        # Create trimesh object
+        # Create trimesh object - vertices are already in spacing-scaled coordinates
+        # which matches the frontend volume rendering coordinate system
         mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
         
         # Clean and optimize mesh (with smoothing and decimation)
@@ -253,7 +333,7 @@ def mask_to_mesh(nii_path: Path, level: float = 0.5, smooth: bool = True) -> Opt
 
 
 def export_obj_with_submeshes(meshes: List[trimesh.Trimesh], names: List[str], out_dir: Path, label_map: dict = None) -> Tuple[Path, Path, Path]:
-    """Export meshes to OBJ + MTL + JSON with system grouping"""
+    """Export meshes to OBJ + MTL + JSON with system grouping, centered at origin"""
     out_dir.mkdir(parents=True, exist_ok=True)
     obj_path = out_dir / "Result.obj"
     mtl_name = "materials.mtl"
@@ -261,6 +341,18 @@ def export_obj_with_submeshes(meshes: List[trimesh.Trimesh], names: List[str], o
     json_path = out_dir / "Result.json"
 
     systems_data = {}
+    
+    # Calculate global bounding box center to center the model
+    all_vertices = []
+    for mesh in meshes:
+        all_vertices.append(mesh.vertices)
+    
+    if all_vertices:
+        combined_verts = np.vstack(all_vertices)
+        global_center = (combined_verts.min(axis=0) + combined_verts.max(axis=0)) / 2.0
+        print(f"[export] Centering model: original center at {global_center}")
+    else:
+        global_center = np.array([0.0, 0.0, 0.0])
 
     with open(obj_path, 'w', encoding='utf-8') as f_obj:
         f_obj.write(f"mtllib {mtl_name}\n")
@@ -274,8 +366,8 @@ def export_obj_with_submeshes(meshes: List[trimesh.Trimesh], names: List[str], o
             f_obj.write(f"g {label}\n")
             f_obj.write(f"usemtl {label}\n")
 
-            # Write vertices
-            vs = mesh.vertices
+            # Write vertices (centered)
+            vs = mesh.vertices - global_center  # Center the model
             for vx, vy, vz in vs:
                 f_obj.write(f"v {vx} {vy} {vz}\n")
             

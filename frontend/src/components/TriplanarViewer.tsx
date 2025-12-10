@@ -85,6 +85,30 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
             loadImageFromFiles([file]).then(res => {
                 if (res?.image) {
                     console.log(`[viewer] Label image loaded for ${plane}`)
+                    
+                    // Fix: Flip X axis (Horizontal Mirror) for segmentation mask
+                    // This aligns with the 3D view fix and standard radiological display
+                    const img = res.image
+                    const data = img.data
+                    const size = img.size
+                    
+                    if (data && size && size.length >= 3) {
+                        const sx = size[0]
+                        const sy = size[1]
+                        const sz = size[2]
+                        
+                        // Process slice by slice, row by row
+                        // X is the inner-most dimension (contiguous)
+                        for (let z = 0; z < sz; z++) {
+                            for (let y = 0; y < sy; y++) {
+                                const offset = (z * sy + y) * sx
+                                // subarray returns a view, reverse modifies in-place
+                                data.subarray(offset, offset + sx).reverse()
+                            }
+                        }
+                        console.log(`[viewer] Applied X-flip to segmentation mask`)
+                    }
+
                     setLabelImage(res.image)
                 }
             })
@@ -405,6 +429,14 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
     const [sx, sy, sz] = img.size as number[]
     const data: Float32Array = img.data as Float32Array
     
+    // Image is now reoriented to RAS in the loader, so use standard radiological conventions
+    // For radiological viewing (patient facing you):
+    // - Axial: flip Y so anterior is at top of screen
+    // - Coronal: flip Z so superior (head) is at top
+    // - Sagittal: flip Z so superior (head) is at top
+    const flipY = true
+    const flipZ = true
+    
     // Label data
     const lbl = (showLabel && labelImage) ? labelImage : null
     const lblData = lbl ? (lbl.data as Float32Array | Uint8Array | Int16Array) : null
@@ -437,8 +469,8 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
       if (plane === 'axial') {
         for (let y = 0; y < h; y++) {
           for (let x = 0; x < w; x++) {
-            // Invert Y for display usually? Code says (sy - 1 - y)
-            const yy = sy - 1 - y
+            // Flip Y based on direction matrix
+            const yy = flipY ? (sy - 1 - y) : y
             const v = pick(x, yy, zIndex)
             const l = pickLbl(x, yy, zIndex)
             
@@ -477,7 +509,8 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
         const yIndex = Math.max(0, Math.min(sy - 1, useAppStore.getState().viewer.coronalIndex))
         for (let z = 0; z < h; z++) {
           for (let x = 0; x < w; x++) {
-            const zz = sz - 1 - z
+            // Flip Z based on direction matrix
+            const zz = flipZ ? (sz - 1 - z) : z
             const v = pick(x, yIndex, zz)
             const l = pickLbl(x, yIndex, zz)
             
@@ -513,7 +546,8 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
         const xIndex = Math.max(0, Math.min(sx - 1, useAppStore.getState().viewer.sagittalIndex))
         for (let z = 0; z < h; z++) {
           for (let y = 0; y < w; y++) {
-            const zz = sz - 1 - z
+            // Flip Z based on direction matrix
+            const zz = flipZ ? (sz - 1 - z) : z
             const v = pick(xIndex, y, zz)
             const l = pickLbl(xIndex, y, zz)
             
