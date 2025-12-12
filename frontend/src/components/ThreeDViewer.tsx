@@ -742,8 +742,6 @@ export default function ThreeDViewer({ tall }: { tall?: boolean }) {
                 
                 // Fix Orientation: Rotate -90 deg on X to make patient stand up (Y-up)
                 root.rotation.x = -Math.PI / 2
-                // Apply horizontal mirror (flip X) to fix segmentation mask orientation as requested
-                root.scale.set(-1, 1, 1)
                 
                 // Center the model geometry at origin
                 const box = new THREE.Box3().setFromObject(obj)

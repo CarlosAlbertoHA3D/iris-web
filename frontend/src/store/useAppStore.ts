@@ -112,16 +112,29 @@ const normalizeStatus = (status?: string): JobStatus => {
   return 'idle'
 }
 
+const getCorrectedSystem = (name: string, originalSystem: string): string => {
+  const n = name.toLowerCase()
+  
+  // Fix specific misclassifications requested by user
+  if (n.includes('spinal_cord') || n.includes('spinal cord')) return 'nervous'
+  if (n.includes('clavicula') || n.includes('costal_cartilages') || n.includes('costal cartilages')) return 'skeletal'
+  if (n.includes('small_bowel') || n.includes('small bowel')) return 'digestive'
+  if (n.includes('autochthon')) return 'muscular'
+  
+  return originalSystem
+}
+
 const buildStructuresFromSystems = (systems: any): StructureItem[] => {
   if (!systems || typeof systems !== 'object') return []
   const items: StructureItem[] = []
   Object.entries<any>(systems).forEach(([system, arr]) => {
     if (Array.isArray(arr)) {
       for (const it of arr) {
+        const correctedSystem = getCorrectedSystem(it.object_name, system)
         items.push({
-          id: `${system}__${it.object_name}`,
+          id: `${correctedSystem}__${it.object_name}`, // Use corrected system in ID too
           name: it.object_name,
-          system,
+          system: correctedSystem,
           labelId: it.label_id,
           color: Array.isArray(it.color) && it.color.length === 3 ? [it.color[0], it.color[1], it.color[2]] : [200, 200, 200],
           visible: true,

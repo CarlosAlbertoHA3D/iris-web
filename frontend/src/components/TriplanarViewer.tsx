@@ -93,20 +93,8 @@ export default function TriplanarViewer({ plane, tall }: { plane: Plane; tall?: 
                     const size = img.size
                     
                     if (data && size && size.length >= 3) {
-                        const sx = size[0]
-                        const sy = size[1]
-                        const sz = size[2]
-                        
-                        // Process slice by slice, row by row
-                        // X is the inner-most dimension (contiguous)
-                        for (let z = 0; z < sz; z++) {
-                            for (let y = 0; y < sy; y++) {
-                                const offset = (z * sy + y) * sx
-                                // subarray returns a view, reverse modifies in-place
-                                data.subarray(offset, offset + sx).reverse()
-                            }
-                        }
-                        console.log(`[viewer] Applied X-flip to segmentation mask`)
+                        console.log(`[viewer] Label image loaded for ${plane}`)
+                        // Removed X-flip to fix orientation mismatch with slices
                     }
 
                     setLabelImage(res.image)

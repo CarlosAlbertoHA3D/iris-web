@@ -16,7 +16,7 @@ import trimesh
 
 def get_system_for_subobject(obj_name_original: str) -> str:
     name = obj_name_original.lower()
-    if "brain" in name or "spinal cord" in name or "mandibular canal" in name:
+    if "brain" in name or "spinal cord" in name or "spinal_cord" in name or "mandibular canal" in name:
         return "nervous"
     if "lung" in name or "trachea" in name:
         return "respiratory"
@@ -43,19 +43,20 @@ def get_system_for_subobject(obj_name_original: str) -> str:
             return "veins_cardiovascular"
     digestive_keywords = [
         "stomach", "liver", "colon", "small intestine", "duodenum",
-        "esophagus", "oesophagus", "pancreas", "small bowel", "spleen"
+        "esophagus", "oesophagus", "pancreas", "small bowel", "small_bowel", "spleen"
     ]
     for kw in digestive_keywords:
         if kw in name:
             return "digestive"
     skeletal_keywords = [
-        "vertebra", "rib", "scapula", "femur", "clavicle", "humerus",
-        "hip", "iliac", "sacrum", "bone", "mandible", "cranium", "skull"
+        "vertebra", "rib", "scapula", "femur", "clavicle", "clavicula", "humerus",
+        "hip", "iliac", "sacrum", "bone", "mandible", "cranium", "skull",
+        "costal_cartilages", "costal cartilages"
     ]
     for kw in skeletal_keywords:
         if kw in name:
             return "skeletal"
-    muscular_keywords = ["muscle", "gluteus", "psoas"]
+    muscular_keywords = ["muscle", "gluteus", "psoas", "autochthon"]
     for kw in muscular_keywords:
         if kw in name:
             return "muscular"

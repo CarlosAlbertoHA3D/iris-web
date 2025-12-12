@@ -43,7 +43,7 @@ app.add_middleware(
 
 def get_system_for_subobject(obj_name_original: str) -> str:
     name = obj_name_original.lower()
-    if "brain" in name or "spinal cord" in name or "mandibular canal" in name:
+    if "brain" in name or "spinal cord" in name or "spinal_cord" in name or "mandibular canal" in name:
         return "nervous"
     if "lung" in name or "trachea" in name:
         return "respiratory"
@@ -70,21 +70,21 @@ def get_system_for_subobject(obj_name_original: str) -> str:
             return "veins_cardiovascular"
     digestive_keywords = [
         "stomach", "liver", "colon", "small intestine", "duodenum",
-        "esophagus", "oesophagus", "pancreas", "small bowel", "spleen"
+        "esophagus", "oesophagus", "pancreas", "small bowel", "small_bowel", "spleen"
     ]
     for kw in digestive_keywords:
         if kw in name:
             return "digestive"
     skeletal_keywords = [
-        "bone", "rib", "vertebra", "scapula", "femur", "clavicle", "humerus",
-        "iliac", "sacrum", "sternum", "mandible", "costal cartilages",
+        "bone", "rib", "vertebra", "scapula", "femur", "clavicle", "clavicula", "humerus",
+        "iliac", "sacrum", "sternum", "mandible", "costal cartilages", "costal_cartilages",
         "left hip", "right hip"
     ]
     for kw in skeletal_keywords:
         if kw in name:
             return "skeletal"
     muscular_keywords = ["muscle", "gluteus", "trapezius", "temporalis","levator",
-        "scalene","pterygoid","digastric","levator","constrictor","sterno","thyrohyoid"]
+        "scalene","pterygoid","digastric","levator","constrictor","sterno","thyrohyoid", "autochthon"]
     for kw in muscular_keywords:
         if kw in name:
             return "muscular"

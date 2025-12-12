@@ -59,13 +59,22 @@ def lambda_handler(event, context):
             
         user_id = item['userId']
         room_code = item.get('roomCode')
+        target_job_id = item.get('jobId')
         
-        response = metadata_table.query(
-            IndexName='userId-createdAt-index',
-            KeyConditionExpression=Key('userId').eq(user_id)
-        )
+        items = []
+        if target_job_id:
+            # If code is linked to specific job, get only that job
+            response = metadata_table.get_item(Key={'jobId': target_job_id})
+            if 'Item' in response:
+                items = [response['Item']]
+        else:
+            # Otherwise get all studies for user
+            response = metadata_table.query(
+                IndexName='userId-createdAt-index',
+                KeyConditionExpression=Key('userId').eq(user_id)
+            )
+            items = response.get('Items', [])
         
-        items = response.get('Items', [])
         items = [item for item in items if not item.get('deleted')]
         items.sort(key=lambda x: x.get('createdAt', 0), reverse=True)
         
